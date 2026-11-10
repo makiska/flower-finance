@@ -1,0 +1,48 @@
+async function request(path, options = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options,
+  });
+
+  let data = null;
+  const text = await res.text();
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text };
+    }
+  }
+
+  if (!res.ok) {
+    const message = (data && data.error) || `Ошибка ${res.status}`;
+    throw new Error(message);
+  }
+  return data;
+}
+
+export const api = {
+  getCategories: () => request('/api/categories'),
+  getProducts: (search = '') => {
+    const q = search ? `?search=${encodeURIComponent(search)}` : '';
+    return request(`/api/products${q}`);
+  },
+  createProduct: (body) =>
+    request('/api/products', { method: 'POST', body: JSON.stringify(body) }),
+  getOperations: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+    });
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return request(`/api/operations${suffix}`);
+  },
+  createOperation: (body) =>
+    request('/api/operations', { method: 'POST', body: JSON.stringify(body) }),
+  updateOperation: (id, body) =>
+    request(`/api/operations/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteOperation: (id) =>
+    request(`/api/operations/${id}`, { method: 'DELETE' }),
+  getAnalytics: (period = 'month') =>
+    request(`/api/analytics?period=${encodeURIComponent(period)}`),
+};

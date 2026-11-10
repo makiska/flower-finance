@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Цветочный учёт</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            leaf: { 50: '#f3faf4', 100: '#e3f4e6', 500: '#2f7d4a', 600: '#24663c', 700: '#1b5130' },
+            soil: { 50: '#faf7f2', 100: '#f0e8dc', 700: '#5a4634', 900: '#2c2118' },
+            petal: { 500: '#c45c6a', 600: '#a84856' },
+          },
+          minHeight: { touch: '44px' },
+          minWidth: { touch: '44px' },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="bg-soil-50 text-soil-900 antialiased">
+  <div id="app" class="mx-auto flex min-h-screen max-w-lg flex-col pb-24">
+    <header class="sticky top-0 z-20 border-b border-soil-100 bg-soil-50/95 px-4 py-3 backdrop-blur">
+      <h1 class="text-xl font-semibold tracking-tight text-leaf-700">Цветочный учёт</h1>
+      <p id="header-subtitle" class="text-sm text-soil-700/70">Текущий месяц</p>
+    </header>
+
+    <main id="tab-content" class="flex-1 px-4 py-4"></main>
+
+    <nav class="fixed bottom-0 left-0 right-0 z-30 border-t border-soil-100 bg-white/95 backdrop-blur">
+      <div class="mx-auto grid max-w-lg grid-cols-4 gap-1 px-2 py-2">
+        <button type="button" data-tab="home" class="tab-btn active flex min-h-touch flex-col items-center justify-center rounded-xl px-1 py-2 text-xs font-medium">
+          <span class="text-lg leading-none">⌂</span>
+          <span>Главная</span>
+        </button>
+        <button type="button" data-tab="ops" class="tab-btn flex min-h-touch flex-col items-center justify-center rounded-xl px-1 py-2 text-xs font-medium">
+          <span class="text-lg leading-none">＋</span>
+          <span>Операции</span>
+        </button>
+        <button type="button" data-tab="history" class="tab-btn flex min-h-touch flex-col items-center justify-center rounded-xl px-1 py-2 text-xs font-medium">
+          <span class="text-lg leading-none">☰</span>
+          <span>История</span>
+        </button>
+        <button type="button" data-tab="analytics" class="tab-btn flex min-h-touch flex-col items-center justify-center rounded-xl px-1 py-2 text-xs font-medium">
+          <span class="text-lg leading-none">◔</span>
+          <span>Отчёты</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <div id="modal-root" class="hidden fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"></div>
+  <div id="toast" class="pointer-events-none fixed left-1/2 top-4 z-[60] hidden -translate-x-1/2 rounded-xl bg-soil-900 px-4 py-3 text-sm text-white shadow-lg"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

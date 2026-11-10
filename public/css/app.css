@@ -1,0 +1,244 @@
+:root {
+  --leaf: #2f7d4a;
+  --leaf-dark: #1b5130;
+  --soil: #2c2118;
+  --petal: #c45c6a;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: ui-rounded, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  padding-bottom: var(--safe-bottom);
+}
+
+.tab-btn {
+  color: #5a4634;
+  opacity: 0.7;
+}
+
+.tab-btn.active {
+  background: #e3f4e6;
+  color: #1b5130;
+  opacity: 1;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  min-width: 44px;
+  border-radius: 0.9rem;
+  background: var(--leaf);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+}
+
+.btn-primary:active {
+  background: var(--leaf-dark);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  min-width: 44px;
+  border-radius: 0.9rem;
+  background: #f0e8dc;
+  color: var(--soil);
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 0.75rem;
+  background: #fde8eb;
+  color: var(--petal);
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+}
+
+.field {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #e5d9c8;
+  border-radius: 0.9rem;
+  background: white;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+}
+
+.field:focus {
+  outline: 2px solid #2f7d4a55;
+  border-color: #2f7d4a;
+}
+
+.card-soft {
+  background: white;
+  border: 1px solid #efe6d8;
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.op-sale { color: #1b5130; }
+.op-purchase { color: #8a5a12; }
+.op-expense { color: #a84856; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: #f0e8dc;
+  color: #5a4634;
+}
+
+.chip.active {
+  background: #2f7d4a;
+  color: white;
+}
+
+.list-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid #f0e8dc;
+}
+
+.list-item:last-child {
+  border-bottom: none;
+}
+
+.product-picker {
+  border: 2px solid #d9cbb8;
+  border-radius: 1rem;
+  background: #fff;
+  overflow: hidden;
+}
+
+.product-picker-label {
+  padding: 0.65rem 0.9rem 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #5a4634;
+  background: #f7f1e8;
+  border-bottom: 1px solid #efe6d8;
+}
+
+.product-results {
+  max-height: 240px;
+  overflow: auto;
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.search-hit {
+  min-height: 60px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  border: 2px solid transparent;
+  background: #faf7f2;
+  text-align: left;
+  width: 100%;
+}
+
+.search-hit:active {
+  background: #e3f4e6;
+}
+
+.search-hit.selected {
+  background: #e3f4e6;
+  border-color: #2f7d4a;
+  box-shadow: inset 0 0 0 1px #2f7d4a33;
+}
+
+.search-hit-check {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 2px solid #cbbba3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: transparent;
+}
+
+.search-hit.selected .search-hit-check {
+  background: #2f7d4a;
+  border-color: #2f7d4a;
+  color: #fff;
+}
+
+.selected-product-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  border: 2px solid #2f7d4a;
+  background: #e3f4e6;
+  padding: 0.9rem 1rem;
+  color: #1b5130;
+}
+
+.selected-product-banner.empty {
+  border-style: dashed;
+  border-color: #cbbba3;
+  background: #fff;
+  color: #5a4634;
+}
+
+.modal-sheet {
+  width: 100%;
+  max-width: 32rem;
+  max-height: 92vh;
+  overflow: auto;
+  background: #faf7f2;
+  border-radius: 1.25rem 1.25rem 0 0;
+  padding: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .modal-sheet {
+    border-radius: 1.25rem;
+  }
+}
+
+.chart-box {
+  position: relative;
+  height: 220px;
+  width: 100%;
+}
