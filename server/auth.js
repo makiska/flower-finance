@@ -13,6 +13,31 @@ function timingSafeEqualHex(a, b) {
   }
 }
 
+/** Comma/space-separated Telegram user IDs from TELEGRAM_ALLOWED_USER_IDS. */
+function parseTelegramAllowlist() {
+  const raw = process.env.TELEGRAM_ALLOWED_USER_IDS?.trim() || '';
+  const ids = new Set();
+  for (const part of raw.split(/[,\s]+/)) {
+    const cleaned = part.trim();
+    if (!cleaned) continue;
+    if (!/^\d+$/.test(cleaned)) continue;
+    ids.add(cleaned);
+  }
+  return ids;
+}
+
+function isTelegramUserAllowed(user) {
+  const allowlist = parseTelegramAllowlist();
+  if (allowlist.size === 0) {
+    return { ok: false, reason: 'allowlist_empty' };
+  }
+  const id = user?.id != null ? String(user.id) : '';
+  if (!id || !allowlist.has(id)) {
+    return { ok: false, reason: 'not_allowlisted' };
+  }
+  return { ok: true, allowlistSize: allowlist.size };
+}
+
 /**
  * Validate Telegram Mini App initData (HMAC-SHA256) per Telegram docs.
  * Never log the bot token.
@@ -76,8 +101,8 @@ async function loadCursorIdentity(req) {
 }
 
 /**
- * Express middleware: require Telegram WebApp initData and/or Cursor app identity.
- * Locally (no CURSOR_APP_ID), Cursor helper yields a simulated verified viewer.
+ * Express middleware: require Telegram WebApp initData (allowlisted user)
+ * and/or Cursor app identity (private/team gate).
  */
 function requireAppAuth() {
   return async function authMiddleware(req, res, next) {
@@ -91,25 +116,42 @@ function requireAppAuth() {
       if (botToken && initData) {
         const tg = validateTelegramInitData(initData, botToken);
         if (tg.ok) {
-          req.auth = { type: 'telegram', user: tg.user };
+          const allowed = isTelegramUserAllowed(tg.user);
+          if (!allowed.ok) {
+            // Authenticated Telegram user, but not on the allowlist (Максим / мама).
+            return res.status(403).json({
+              error: 'Нет доступа к учёту',
+              reason: allowed.reason,
+            });
+          }
+          req.auth = {
+            type: 'telegram',
+            userId: String(tg.user.id),
+            user: tg.user,
+          };
           return next();
         }
-        // Fall through to Cursor identity if Telegram check failed
-        // (e.g. Cursor preview with no initData) only when hash missing;
-        // bad_hash / expired stay hard failures when token is configured
-        // and initData was presented.
-        if (initData && (tg.reason === 'bad_hash' || tg.reason === 'expired' || tg.reason === 'malformed_init_data')) {
+        if (
+          initData &&
+          (tg.reason === 'bad_hash' ||
+            tg.reason === 'expired' ||
+            tg.reason === 'malformed_init_data')
+        ) {
           return res.status(401).json({ error: 'Требуется авторизация', reason: tg.reason });
         }
       }
 
       const identity = await loadCursorIdentity(req);
       if (identity.verified) {
-        req.auth = { type: 'cursor', identity };
+        // Cursor private/team gate already limits who can open the app.
+        req.auth = {
+          type: 'cursor',
+          userId: identity.sub,
+          identity,
+        };
         return next();
       }
 
-      // Production with bot token but no valid session
       if (botToken) {
         return res.status(401).json({
           error: 'Откройте приложение из Telegram или войдите в Cursor',
@@ -117,7 +159,6 @@ function requireAppAuth() {
         });
       }
 
-      // No bot token and no Cursor identity (should be rare locally)
       return res.status(401).json({
         error: 'Требуется авторизация',
         reason: identity.reason || 'unauthorized',
@@ -128,7 +169,19 @@ function requireAppAuth() {
   };
 }
 
+/** Defense-in-depth: routes can assert middleware attached auth. */
+function assertAuthed(req, res) {
+  if (req.auth && (req.auth.type === 'telegram' || req.auth.type === 'cursor')) {
+    return true;
+  }
+  res.status(401).json({ error: 'Требуется авторизация', reason: 'no_auth' });
+  return false;
+}
+
 module.exports = {
   requireAppAuth,
   validateTelegramInitData,
+  parseTelegramAllowlist,
+  isTelegramUserAllowed,
+  assertAuthed,
 };
