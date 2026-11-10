@@ -171,6 +171,43 @@ body {
   background: #faf7f2;
   text-align: left;
   width: 100%;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.group-chip {
+  min-height: 44px;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.85rem;
+  border: 2px solid #d9cbb8;
+  background: #fff;
+  color: #2c2118;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.group-chip-active,
+.group-chip[aria-pressed="true"] {
+  border-color: #2f7d4a;
+  background: #e3f4e6;
+  color: #1b5130;
+}
+
+.create-emphasize {
+  box-shadow: 0 0 0 3px #2f7d4a55;
 }
 
 .search-hit:active {
