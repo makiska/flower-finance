@@ -19,12 +19,12 @@ const DEFAULT_TELEGRAM_ALLOWLIST = ['296676631', '566523551'];
 
 /**
  * Comma/space-separated Telegram user IDs.
- * Prefers TELEGRAM_ALLOWLIST, then TELEGRAM_ALLOWED_USER_IDS, then defaults.
+ * Prefers TELEGRAM_ALLOWED_USER_IDS, then TELEGRAM_ALLOWLIST, then defaults.
  */
 function parseTelegramAllowlist() {
   const raw =
-    process.env.TELEGRAM_ALLOWLIST?.trim() ||
     process.env.TELEGRAM_ALLOWED_USER_IDS?.trim() ||
+    process.env.TELEGRAM_ALLOWLIST?.trim() ||
     '';
   const ids = new Set();
   for (const part of raw.split(/[,\s]+/)) {
