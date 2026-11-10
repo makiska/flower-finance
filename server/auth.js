@@ -13,6 +13,10 @@ function timingSafeEqualHex(a, b) {
   }
 }
 
+// Максим + мама (numeric Telegram user ids). Used when the secret is
+// missing or not numeric (Cursor app UI often can't edit secret values).
+const DEFAULT_TELEGRAM_ALLOWLIST = ['296676631', '566523551'];
+
 /** Comma/space-separated Telegram user IDs from TELEGRAM_ALLOWED_USER_IDS. */
 function parseTelegramAllowlist() {
   const raw = process.env.TELEGRAM_ALLOWED_USER_IDS?.trim() || '';
@@ -22,6 +26,10 @@ function parseTelegramAllowlist() {
     if (!cleaned) continue;
     if (!/^\d+$/.test(cleaned)) continue;
     ids.add(cleaned);
+  }
+  // Fall back to the family allowlist if secret empty / usernames / invalid.
+  if (ids.size === 0) {
+    for (const id of DEFAULT_TELEGRAM_ALLOWLIST) ids.add(id);
   }
   return ids;
 }
