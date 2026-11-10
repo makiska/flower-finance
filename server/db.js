@@ -13,16 +13,22 @@ let local;
  * Uses platform Postgres when DATABASE_URL is set, otherwise in-memory PGlite.
  * Never log DATABASE_URL.
  */
+function asRows(result) {
+  if (Array.isArray(result)) return result;
+  if (result && Array.isArray(result.rows)) return result.rows;
+  return [];
+}
+
 async function sql(text, params = []) {
   if (databaseUrl !== '') {
     pool ??= new pg.Pool({ connectionString: databaseUrl, max: 5 });
-    return (await pool.query(text, params)).rows;
+    return asRows(await pool.query(text, params));
   }
   local ??= startLocal().catch((error) => {
     local = undefined;
     throw error;
   });
-  return (await (await local).query(text, params)).rows;
+  return asRows(await (await local).query(text, params));
 }
 
 async function sqlOne(text, params = []) {

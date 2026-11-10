@@ -29,7 +29,8 @@ function createProductsRouter() {
         );
       }
 
-      res.json(rows);
+      // Always a bare JSON array — never a pg Result wrapper / object.
+      res.status(200).type('json').send(JSON.stringify(Array.isArray(rows) ? rows : []));
     } catch (err) {
       next(err);
     }

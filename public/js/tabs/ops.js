@@ -12,7 +12,10 @@ import { haptic } from '../telegram.js';
 let categoriesCache = null;
 
 async function getCategories() {
-  if (!categoriesCache) categoriesCache = await api.getCategories();
+  if (!categoriesCache) {
+    const rows = await api.getCategories();
+    categoriesCache = Array.isArray(rows) ? rows : [];
+  }
   return categoriesCache;
 }
 
@@ -30,7 +33,7 @@ export async function renderOps(root, ctx) {
       </div>
       <div class="card-soft text-sm text-soil-700/70">
         <p class="font-medium text-soil-900 mb-1">Подсказка</p>
-        <p>В продаже и закупке можно создать новую номенклатуру прямо из поиска, если растения ещё нет в списке.</p>
+        <p>Группу выбираете <strong>только при создании новинки</strong>. Если растение уже в списке — просто нажмите его (группа уже задана).</p>
       </div>
     </section>
   `;
@@ -109,6 +112,10 @@ function openProductOpForm(type, ctx) {
       <button type="button" id="modal-close" class="btn-secondary !min-h-[44px] !px-3">Закрыть</button>
     </div>
     <form id="op-form" class="space-y-3">
+      <p class="rounded-xl bg-soil-50 px-3 py-2 text-sm text-soil-700/80">
+        Группа нужна <strong>только для новинки</strong>. Существующую позицию выбираете из списка — её группа уже задана.
+      </p>
+
       <label class="block">
         <span class="mb-1 block text-sm font-medium">1. Найдите растение</span>
         <input class="field" id="product-search" type="search" autocomplete="off" placeholder="Начните вводить название…" />
@@ -121,12 +128,12 @@ function openProductOpForm(type, ctx) {
         </div>
       </div>
 
+      <div id="create-new" class="hidden space-y-3 rounded-2xl border-2 border-leaf-500 bg-leaf-50 p-4 shadow-sm"></div>
+
       <div class="product-picker">
-        <div class="product-picker-label">2. Нажмите нужную позицию в списке</div>
+        <div class="product-picker-label">2. Нажмите нужную позицию в списке (группа уже у позиции)</div>
         <div id="product-results" class="product-results"></div>
       </div>
-
-      <div id="create-new" class="hidden space-y-2 rounded-xl border-2 border-dashed border-leaf-500/50 bg-white p-3"></div>
 
       <div class="grid grid-cols-2 gap-2">
         <label class="block">
@@ -162,17 +169,59 @@ function openProductOpForm(type, ctx) {
   function setSelected(product) {
     selected = product;
     selectedBox.classList.remove('empty');
-    selectedText.innerHTML = `${escapeHtml(product.name)}<div class="mt-0.5 text-sm font-medium opacity-80">${escapeHtml(product.category_name || '')}</div>`;
+    const group = product.category_name
+      ? `Группа: ${escapeHtml(product.category_name)}`
+      : 'Группа уже задана у позиции';
+    selectedText.innerHTML = `${escapeHtml(product.name)}<div class="mt-0.5 text-sm font-medium opacity-80">${group}</div>`;
     results.querySelectorAll('.search-hit').forEach((el) => {
       el.classList.toggle('selected', Number(el.dataset.id) === product.id);
     });
     haptic('light');
   }
 
+  async function renderCreateNew(name) {
+    const cats = await getCategories();
+    if (!cats.length) {
+      createNew.classList.remove('hidden');
+      createNew.innerHTML = `<p class="text-sm text-petal-600">Нет групп для новой позиции — обновите страницу.</p>`;
+      return;
+    }
+    createNew.classList.remove('hidden');
+    createNew.innerHTML = `
+      <p class="text-lg font-bold text-leaf-800">Создать новинку</p>
+      <p class="text-sm text-soil-700">Точного совпадения нет. Здесь выбираете <strong>группу</strong> — только при создании новой позиции для этой ${type === 'sale' ? 'продажи' : 'закупки'}.</p>
+      <label class="block">
+        <span class="mb-1 block text-sm font-medium">Группа для новинки</span>
+        <select id="new-category" class="field" aria-label="Группа для новой позиции">
+          ${cats.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+        </select>
+      </label>
+      <button type="button" id="create-product" class="btn-primary w-full !min-h-[56px] text-base">
+        + Создать новинку «${escapeHtml(name)}»
+      </button>
+    `;
+    createNew.querySelector('#create-product').onclick = async () => {
+      const category_id = Number(createNew.querySelector('#new-category').value);
+      try {
+        const product = await api.createProduct({ name, category_id });
+        showToast('Новинка создана и выбрана');
+        setSelected(product);
+        createNew.classList.add('hidden');
+        createNew.innerHTML = '';
+        searchInput.value = product.name;
+        await runSearch(product.name);
+      } catch (err) {
+        showToast(err.message);
+      }
+    };
+  }
+
   async function runSearch(q) {
     try {
-      const products = await api.getProducts(q);
-      const exact = products.some((p) => p.name.toLowerCase() === q.toLowerCase());
+      const raw = await api.getProducts(q);
+      const products = Array.isArray(raw) ? raw : [];
+      const needle = q.trim();
+      const exact = products.some((p) => String(p.name || '').toLowerCase() === needle.toLowerCase());
 
       results.innerHTML = products.length
         ? products
@@ -187,7 +236,9 @@ function openProductOpForm(type, ctx) {
             </button>`
             )
             .join('')
-        : '<p class="px-3 py-4 text-sm text-soil-700/70">Ничего не найдено — создайте новинку ниже, если нужно</p>';
+        : needle
+          ? '<p class="px-3 py-4 text-sm text-soil-700/70">В списке пусто — создайте новинку кнопкой выше.</p>'
+          : '<p class="px-3 py-4 text-sm text-soil-700/70">Начните вводить название или создайте новинку после ввода.</p>';
 
       results.querySelectorAll('[data-id]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -196,34 +247,17 @@ function openProductOpForm(type, ctx) {
         });
       });
 
-      if (q.trim() && !exact) {
-        const cats = await getCategories();
-        createNew.classList.remove('hidden');
-        createNew.innerHTML = `
-          <p class="text-base font-semibold text-leaf-700">Создать новинку: «${escapeHtml(q.trim())}»</p>
-          <p class="text-sm text-soil-700/70">Выберите группу и нажмите кнопку — позиция сразу подставится в операцию.</p>
-          <select id="new-category" class="field">
-            ${cats.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
-          </select>
-          <button type="button" id="create-product" class="btn-primary w-full">Создать и выбрать</button>
-        `;
-        createNew.querySelector('#create-product').onclick = async () => {
-          const category_id = Number(createNew.querySelector('#new-category').value);
-          try {
-            const product = await api.createProduct({ name: q.trim(), category_id });
-            showToast('Товар создан');
-            setSelected(product);
-            createNew.classList.add('hidden');
-            await runSearch(q.trim());
-          } catch (err) {
-            showToast(err.message);
-          }
-        };
+      // Always offer create when there is search text and no exact name match
+      // (covers empty list and partial matches alike).
+      if (needle && !exact) {
+        await renderCreateNew(needle);
       } else {
         createNew.classList.add('hidden');
         createNew.innerHTML = '';
       }
     } catch (err) {
+      createNew.classList.add('hidden');
+      createNew.innerHTML = '';
       results.innerHTML = `<p class="px-3 py-4 text-sm text-petal-600">${escapeHtml(err.message)}</p>`;
     }
   }
