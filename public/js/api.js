@@ -8,9 +8,12 @@ function authHeaders() {
 }
 
 async function request(path, options = {}) {
+  const { headers: extraHeaders, method = 'GET', body, ...rest } = options;
   const res = await fetch(path, {
-    headers: { ...authHeaders(), ...(options.headers || {}) },
-    ...options,
+    ...rest,
+    method,
+    body,
+    headers: { ...authHeaders(), ...(extraHeaders || {}) },
   });
 
   let data = null;
@@ -19,12 +22,15 @@ async function request(path, options = {}) {
     try {
       data = JSON.parse(text);
     } catch {
-      data = { error: text };
+      data = { error: text.slice(0, 180) };
     }
   }
 
   if (!res.ok) {
-    const message = (data && data.error) || `Ошибка ${res.status}`;
+    const allow = res.headers.get('Allow');
+    let message = (data && data.error) || `Ошибка ${res.status}`;
+    if (typeof message !== 'string') message = `Ошибка ${res.status}`;
+    if (res.status === 405 && allow) message = `${message} (Allow: ${allow})`;
     throw new Error(message);
   }
   return data;
@@ -45,7 +51,10 @@ export const api = {
     return asArray(await request(`/api/products${q}`));
   },
   createProduct: (body) =>
-    request('/api/products', { method: 'POST', body: JSON.stringify(body) }),
+    request('/api/products/create', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   getOperations: (params = {}) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {

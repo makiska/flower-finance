@@ -15,14 +15,8 @@ async function main() {
   const app = express();
 
   app.use(express.json({ limit: '64kb' }));
-  app.use(express.static(path.join(__dirname, '..', 'public'), {
-    setHeaders(res) {
-      res.setHeader('Cache-Control', 'private, no-store');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-    },
-  }));
 
-  // All API routes require Telegram allowlisted session and/or Cursor identity.
+  // API first — never let static middleware answer POST/PUT/DELETE with 405.
   app.use('/api', requireAppAuth());
   app.use('/api', (req, res, next) => {
     if (!assertAuthed(req, res)) return;
@@ -42,6 +36,25 @@ async function main() {
   app.use('/api/products', createProductsRouter());
   app.use('/api/operations', createOperationsRouter());
   app.use('/api/analytics', createAnalyticsRouter());
+
+  app.use('/api', (req, res) => {
+    res.setHeader('Allow', 'GET, POST, PUT, DELETE');
+    res.status(405).json({
+      error: 'Метод не поддерживается для этого API',
+      method: req.method,
+      path: req.path,
+    });
+  });
+
+  app.use(
+    express.static(path.join(__dirname, '..', 'public'), {
+      fallthrough: true,
+      setHeaders(res) {
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      },
+    })
+  );
 
   app.use((err, _req, res, _next) => {
     console.error(err);

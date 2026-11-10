@@ -288,41 +288,20 @@ function openProductOpForm(type, ctx) {
       createPanel.querySelector('#create-product').onclick = async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const nameInput = createPanel.querySelector('#new-product-name');
-        const name = String(nameInput.value || '').trim();
-        if (!name) {
-          showToast('Укажите название');
-          nameInput.focus();
-          return;
-        }
-        if (!selectedGroupName) {
-          showToast('Выберите группу');
-          return;
-        }
         try {
-          if (selectedGroupId == null) {
-            const fresh = await groupOptions({ force: true });
-            const match = fresh.find((o) => o.name === selectedGroupName);
-            selectedGroupId = match?.id ?? null;
-            renderGroupChips(fresh);
-            paintGroups();
-          }
-          const body = {
-            name,
-            category_name: selectedGroupName,
-          };
-          if (selectedGroupId != null) body.category_id = selectedGroupId;
-          const product = await api.createProduct(body);
-          setSelected(product);
-          hideCreate();
-          openCreateBtn.classList.add('hidden');
-          searchInput.value = product.name;
-          await runSearch(product.name);
+          await createNewProduct();
           showToast('Позиция выбрана');
         } catch (err) {
           showToast(err.message);
         }
       };
+
+      createPanel.querySelector('#new-product-name').addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        e.stopPropagation();
+        createPanel.querySelector('#create-product').click();
+      });
     }
 
     renderGroupChips(options);
@@ -333,6 +312,40 @@ function openProductOpForm(type, ctx) {
       nameInput.focus();
     }
     paintGroups();
+  }
+
+  async function createNewProduct() {
+    const nameInput = createPanel.querySelector('#new-product-name');
+    if (!nameInput || createPanel.classList.contains('hidden')) {
+      throw new Error('Откройте создание новой позиции');
+    }
+    const name = String(nameInput.value || '').trim();
+    if (!name) {
+      nameInput.focus();
+      throw new Error('Укажите название');
+    }
+    if (!selectedGroupName) {
+      throw new Error('Выберите группу');
+    }
+    if (selectedGroupId == null) {
+      const fresh = await groupOptions({ force: true });
+      const match = fresh.find((o) => o.name === selectedGroupName);
+      selectedGroupId = match?.id ?? null;
+      renderGroupChips(fresh);
+      paintGroups();
+    }
+    const body = {
+      name,
+      category_name: selectedGroupName,
+    };
+    if (selectedGroupId != null) body.category_id = selectedGroupId;
+    const product = await api.createProduct(body);
+    setSelected(product);
+    hideCreate();
+    openCreateBtn.classList.add('hidden');
+    searchInput.value = product.name;
+    await runSearch(product.name);
+    return product;
   }
 
   async function runSearch(q) {
@@ -394,17 +407,21 @@ function openProductOpForm(type, ctx) {
 
   form.onsubmit = async (e) => {
     e.preventDefault();
-    if (!selected) {
-      showToast('Выберите растение из списка или создайте новое');
-      return;
-    }
-    const fd = new FormData(form);
-    const quantity = Number(fd.get('quantity'));
-    const unitPrice = Number(fd.get('unit_price'));
-    const amountRaw = String(fd.get('amount') || '').trim();
-    const amount = amountRaw !== '' ? Number(amountRaw) : unitPrice * quantity;
-    const comment = String(fd.get('comment') || '').trim() || null;
     try {
+      // «Сохранить» after filling name+group should create the product first.
+      if (!selected && !createPanel.classList.contains('hidden')) {
+        await createNewProduct();
+      }
+      if (!selected) {
+        showToast('Выберите растение из списка или создайте новое');
+        return;
+      }
+      const fd = new FormData(form);
+      const quantity = Number(fd.get('quantity'));
+      const unitPrice = Number(fd.get('unit_price'));
+      const amountRaw = String(fd.get('amount') || '').trim();
+      const amount = amountRaw !== '' ? Number(amountRaw) : unitPrice * quantity;
+      const comment = String(fd.get('comment') || '').trim() || null;
       await api.createOperation({
         type,
         product_id: selected.id,
