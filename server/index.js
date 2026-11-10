@@ -1,7 +1,7 @@
 const path = require('path');
 const express = require('express');
 const { initDb, usingPostgres } = require('./db');
-const { requireAppAuth } = require('./auth');
+const { requireAppAuth, assertAuthed } = require('./auth');
 const { createCategoriesRouter } = require('./routes/categories');
 const { createProductsRouter } = require('./routes/products');
 const { createOperationsRouter } = require('./routes/operations');
@@ -22,12 +22,20 @@ async function main() {
     },
   }));
 
-  // All API routes require Telegram Mini App session and/or Cursor identity.
+  // All API routes require Telegram allowlisted session and/or Cursor identity.
   app.use('/api', requireAppAuth());
+  app.use('/api', (req, res, next) => {
+    if (!assertAuthed(req, res)) return;
+    next();
+  });
 
-  app.get('/api/health', (_req, res) => {
+  app.get('/api/health', (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store');
-    res.json({ ok: true, db: usingPostgres ? 'postgres' : 'pglite' });
+    res.json({
+      ok: true,
+      db: usingPostgres ? 'postgres' : 'pglite',
+      auth: req.auth?.type || null,
+    });
   });
 
   app.use('/api/categories', createCategoriesRouter());
