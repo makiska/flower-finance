@@ -46,7 +46,10 @@ export function openModal(html) {
   root.onclick = (e) => {
     if (e.target === root) closeModal();
   };
-  return root.querySelector('.modal-sheet');
+  const sheet = root.querySelector('.modal-sheet');
+  // Keep interactions inside the sheet from hitting the backdrop handler oddly.
+  sheet?.addEventListener('click', (e) => e.stopPropagation());
+  return sheet;
 }
 
 export function closeModal() {
