@@ -1,4 +1,5 @@
 const express = require('express');
+const { sql, sqlOne } = require('../db');
 
 const ALLOWED_TYPES = new Set(['sale', 'purchase', 'expense']);
 
@@ -77,7 +78,7 @@ function validateOperationBody(body, { partial = false } = {}) {
   return { errors, result };
 }
 
-function createOperationsRouter(db) {
+function createOperationsRouter() {
   const router = express.Router();
 
   const selectSql = `
@@ -91,145 +92,174 @@ function createOperationsRouter(db) {
     LEFT JOIN categories c ON c.id = p.category_id
   `;
 
-  router.get('/', (req, res) => {
-    const type = String(req.query.type || '').trim();
-    const period = String(req.query.period || '').trim();
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
-    const offset = Math.max(Number(req.query.offset) || 0, 0);
+  router.get('/', async (req, res, next) => {
+    try {
+      const type = String(req.query.type || '').trim();
+      const period = String(req.query.period || '').trim();
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-    const where = [];
-    const params = [];
+      const where = [];
+      const params = [];
 
-    if (ALLOWED_TYPES.has(type)) {
-      where.push('o.type = ?');
-      params.push(type);
-    }
+      if (ALLOWED_TYPES.has(type)) {
+        params.push(type);
+        where.push(`o.type = $${params.length}`);
+      }
 
-    if (period === 'month') {
-      const { start, end } = monthBounds();
-      where.push('o.date >= ? AND o.date < ?');
-      params.push(start, end);
-    }
+      if (period === 'month') {
+        const { start, end } = monthBounds();
+        params.push(start);
+        const startIdx = params.length;
+        params.push(end);
+        const endIdx = params.length;
+        where.push(`o.date >= $${startIdx} AND o.date < $${endIdx}`);
+      }
 
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const rows = db
-      .prepare(
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      params.push(limit);
+      const limitIdx = params.length;
+      params.push(offset);
+      const offsetIdx = params.length;
+
+      const rows = await sql(
         `${selectSql}
          ${whereSql}
          ORDER BY o.date DESC, o.id DESC
-         LIMIT ? OFFSET ?`
-      )
-      .all(...params, limit, offset);
-
-    const total = db
-      .prepare(`SELECT COUNT(*) AS c FROM operations o ${whereSql}`)
-      .get(...params).c;
-
-    res.json({ items: rows, total, limit, offset });
-  });
-
-  router.post('/', (req, res) => {
-    const { errors, result } = validateOperationBody(req.body || {});
-    if (errors.length) {
-      return res.status(400).json({ error: errors.join('; ') });
-    }
-
-    if (result.type === 'expense') {
-      if (!result.comment) {
-        return res.status(400).json({ error: 'Для расходника комментарий обязателен' });
-      }
-      result.product_id = null;
-    } else if (!result.product_id) {
-      return res.status(400).json({ error: 'Для продажи/закупки нужен product_id' });
-    }
-
-    if (result.product_id) {
-      const product = db.prepare('SELECT id FROM products WHERE id = ?').get(result.product_id);
-      if (!product) {
-        return res.status(400).json({ error: 'Товар не найден' });
-      }
-    }
-
-    const info = db
-      .prepare(
-        `INSERT INTO operations (type, product_id, quantity, amount, comment, date)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        result.type,
-        result.product_id,
-        result.quantity,
-        result.amount,
-        result.comment,
-        result.date
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        params
       );
 
-    const row = db.prepare(`${selectSql} WHERE o.id = ?`).get(info.lastInsertRowid);
-    res.status(201).json(row);
+      const countParams = params.slice(0, params.length - 2);
+      const totalRow = await sqlOne(
+        `SELECT COUNT(*)::int AS c FROM operations o ${whereSql}`,
+        countParams
+      );
+
+      res.json({ items: rows, total: totalRow?.c ?? 0, limit, offset });
+    } catch (err) {
+      next(err);
+    }
   });
 
-  router.put('/:id', (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ error: 'Некорректный id' });
-    }
-
-    const existing = db.prepare('SELECT * FROM operations WHERE id = ?').get(id);
-    if (!existing) {
-      return res.status(404).json({ error: 'Операция не найдена' });
-    }
-
-    const { errors, result } = validateOperationBody(req.body || {}, { partial: true });
-    if (errors.length) {
-      return res.status(400).json({ error: errors.join('; ') });
-    }
-
-    const next = {
-      type: result.type ?? existing.type,
-      product_id: result.product_id !== undefined ? result.product_id : existing.product_id,
-      quantity: result.quantity ?? existing.quantity,
-      amount: result.amount ?? existing.amount,
-      comment: result.comment !== undefined ? result.comment : existing.comment,
-      date: result.date ?? existing.date,
-    };
-
-    if (next.type === 'expense') {
-      if (!next.comment) {
-        return res.status(400).json({ error: 'Для расходника комментарий обязателен' });
+  router.post('/', async (req, res, next) => {
+    try {
+      const { errors, result } = validateOperationBody(req.body || {});
+      if (errors.length) {
+        return res.status(400).json({ error: errors.join('; ') });
       }
-      next.product_id = null;
-    } else if (!next.product_id) {
-      return res.status(400).json({ error: 'Для продажи/закупки нужен product_id' });
-    }
 
-    if (next.product_id) {
-      const product = db.prepare('SELECT id FROM products WHERE id = ?').get(next.product_id);
-      if (!product) {
-        return res.status(400).json({ error: 'Товар не найден' });
+      if (result.type === 'expense') {
+        if (!result.comment) {
+          return res.status(400).json({ error: 'Для расходника комментарий обязателен' });
+        }
+        result.product_id = null;
+      } else if (!result.product_id) {
+        return res.status(400).json({ error: 'Для продажи/закупки нужен product_id' });
       }
+
+      if (result.product_id) {
+        const product = await sqlOne('SELECT id FROM products WHERE id = $1', [result.product_id]);
+        if (!product) {
+          return res.status(400).json({ error: 'Товар не найден' });
+        }
+      }
+
+      const inserted = await sqlOne(
+        `INSERT INTO operations (type, product_id, quantity, amount, comment, date)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [
+          result.type,
+          result.product_id,
+          result.quantity,
+          result.amount,
+          result.comment,
+          result.date,
+        ]
+      );
+
+      const row = await sqlOne(`${selectSql} WHERE o.id = $1`, [inserted.id]);
+      res.status(201).json(row);
+    } catch (err) {
+      next(err);
     }
-
-    db.prepare(
-      `UPDATE operations
-       SET type = ?, product_id = ?, quantity = ?, amount = ?, comment = ?, date = ?
-       WHERE id = ?`
-    ).run(next.type, next.product_id, next.quantity, next.amount, next.comment, next.date, id);
-
-    const row = db.prepare(`${selectSql} WHERE o.id = ?`).get(id);
-    res.json(row);
   });
 
-  router.delete('/:id', (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ error: 'Некорректный id' });
-    }
+  router.put('/:id', async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ error: 'Некорректный id' });
+      }
 
-    const info = db.prepare('DELETE FROM operations WHERE id = ?').run(id);
-    if (info.changes === 0) {
-      return res.status(404).json({ error: 'Операция не найдена' });
+      const existing = await sqlOne('SELECT * FROM operations WHERE id = $1', [id]);
+      if (!existing) {
+        return res.status(404).json({ error: 'Операция не найдена' });
+      }
+
+      const { errors, result } = validateOperationBody(req.body || {}, { partial: true });
+      if (errors.length) {
+        return res.status(400).json({ error: errors.join('; ') });
+      }
+
+      const nextOp = {
+        type: result.type ?? existing.type,
+        product_id: result.product_id !== undefined ? result.product_id : existing.product_id,
+        quantity: result.quantity ?? existing.quantity,
+        amount: result.amount ?? existing.amount,
+        comment: result.comment !== undefined ? result.comment : existing.comment,
+        date: result.date ?? existing.date,
+      };
+
+      if (nextOp.type === 'expense') {
+        if (!nextOp.comment) {
+          return res.status(400).json({ error: 'Для расходника комментарий обязателен' });
+        }
+        nextOp.product_id = null;
+      } else if (!nextOp.product_id) {
+        return res.status(400).json({ error: 'Для продажи/закупки нужен product_id' });
+      }
+
+      if (nextOp.product_id) {
+        const product = await sqlOne('SELECT id FROM products WHERE id = $1', [nextOp.product_id]);
+        if (!product) {
+          return res.status(400).json({ error: 'Товар не найден' });
+        }
+      }
+
+      await sql(
+        `UPDATE operations
+         SET type = $1, product_id = $2, quantity = $3, amount = $4, comment = $5, date = $6
+         WHERE id = $7`,
+        [nextOp.type, nextOp.product_id, nextOp.quantity, nextOp.amount, nextOp.comment, nextOp.date, id]
+      );
+
+      const row = await sqlOne(`${selectSql} WHERE o.id = $1`, [id]);
+      res.json(row);
+    } catch (err) {
+      next(err);
     }
-    res.json({ ok: true, id });
+  });
+
+  router.delete('/:id', async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ error: 'Некорректный id' });
+      }
+
+      const deleted = await sqlOne(
+        'DELETE FROM operations WHERE id = $1 RETURNING id',
+        [id]
+      );
+      if (!deleted) {
+        return res.status(404).json({ error: 'Операция не найдена' });
+      }
+      res.json({ ok: true, id });
+    } catch (err) {
+      next(err);
+    }
   });
 
   return router;

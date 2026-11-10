@@ -1,22 +1,23 @@
 const express = require('express');
+const { sql } = require('../db');
 const { monthBounds } = require('./operations');
 
-function createAnalyticsRouter(db) {
+function createAnalyticsRouter() {
   const router = express.Router();
 
-  router.get('/', (req, res) => {
-    const period = String(req.query.period || 'month');
-    const params = [];
-    let dateFilter = '';
+  router.get('/', async (req, res, next) => {
+    try {
+      const period = String(req.query.period || 'month');
+      const params = [];
+      let dateFilter = '';
 
-    if (period === 'month') {
-      const { start, end } = monthBounds();
-      dateFilter = 'AND o.date >= ? AND o.date < ?';
-      params.push(start, end);
-    }
+      if (period === 'month') {
+        const { start, end } = monthBounds();
+        params.push(start, end);
+        dateFilter = 'AND o.date >= $1 AND o.date < $2';
+      }
 
-    const summary = db
-      .prepare(
+      const summaryRows = await sql(
         `SELECT
            COALESCE(SUM(CASE WHEN type = 'sale' THEN amount ELSE 0 END), 0) AS revenue,
            COALESCE(SUM(CASE WHEN type IN ('purchase', 'expense') THEN amount ELSE 0 END), 0) AS costs,
@@ -25,97 +26,95 @@ function createAnalyticsRouter(db) {
            COALESCE(SUM(CASE WHEN type = 'sale' THEN quantity ELSE 0 END), 0) AS sold_qty,
            COALESCE(COUNT(CASE WHEN type = 'sale' THEN 1 END), 0) AS sale_count
          FROM operations o
-         WHERE 1=1 ${dateFilter}`
-      )
-      .get(...params);
+         WHERE 1=1 ${dateFilter}`,
+        params
+      );
+      const summary = summaryRows[0] || {};
 
-    const revenue = Number(summary.revenue) || 0;
-    const costs = Number(summary.costs) || 0;
-    const profit = revenue - costs;
-    const saleCount = Number(summary.sale_count) || 0;
-    const averageCheck = saleCount > 0 ? revenue / saleCount : 0;
+      const revenue = Number(summary.revenue) || 0;
+      const costs = Number(summary.costs) || 0;
+      const profit = revenue - costs;
+      const saleCount = Number(summary.sale_count) || 0;
+      const averageCheck = saleCount > 0 ? revenue / saleCount : 0;
 
-    // Dynamics: by day for month, by month for all
-    let dynamics;
-    if (period === 'month') {
-      dynamics = db
-        .prepare(
+      let dynamics;
+      if (period === 'month') {
+        const rows = await sql(
           `SELECT
-             DATE(o.date) AS bucket,
+             (o.date AT TIME ZONE 'UTC')::date::text AS bucket,
              COALESCE(SUM(CASE WHEN type = 'sale' THEN amount ELSE 0 END), 0) AS revenue,
              COALESCE(SUM(CASE WHEN type IN ('purchase', 'expense') THEN amount ELSE 0 END), 0) AS costs
            FROM operations o
            WHERE 1=1 ${dateFilter}
-           GROUP BY DATE(o.date)
-           ORDER BY bucket`
-        )
-        .all(...params)
-        .map((row) => ({
+           GROUP BY (o.date AT TIME ZONE 'UTC')::date
+           ORDER BY bucket`,
+          params
+        );
+        dynamics = rows.map((row) => ({
           label: row.bucket,
-          revenue: row.revenue,
-          costs: row.costs,
-          profit: row.revenue - row.costs,
+          revenue: Number(row.revenue) || 0,
+          costs: Number(row.costs) || 0,
+          profit: (Number(row.revenue) || 0) - (Number(row.costs) || 0),
         }));
-    } else {
-      dynamics = db
-        .prepare(
+      } else {
+        const rows = await sql(
           `SELECT
-             strftime('%Y-%m', o.date) AS bucket,
+             to_char(o.date AT TIME ZONE 'UTC', 'YYYY-MM') AS bucket,
              COALESCE(SUM(CASE WHEN type = 'sale' THEN amount ELSE 0 END), 0) AS revenue,
              COALESCE(SUM(CASE WHEN type IN ('purchase', 'expense') THEN amount ELSE 0 END), 0) AS costs
            FROM operations o
-           GROUP BY strftime('%Y-%m', o.date)
+           GROUP BY to_char(o.date AT TIME ZONE 'UTC', 'YYYY-MM')
            ORDER BY bucket`
-        )
-        .all()
-        .map((row) => ({
+        );
+        dynamics = rows.map((row) => ({
           label: row.bucket,
-          revenue: row.revenue,
-          costs: row.costs,
-          profit: row.revenue - row.costs,
+          revenue: Number(row.revenue) || 0,
+          costs: Number(row.costs) || 0,
+          profit: (Number(row.revenue) || 0) - (Number(row.costs) || 0),
         }));
-    }
+      }
 
-    // Weekday: SQLite strftime('%w') 0=Sunday
-    const weekdayRaw = db
-      .prepare(
+      // EXTRACT(DOW …) 0=Sunday — same as SQLite strftime('%w')
+      const weekdayRaw = await sql(
         `SELECT
-           CAST(strftime('%w', o.date) AS INTEGER) AS weekday,
+           EXTRACT(DOW FROM o.date AT TIME ZONE 'UTC')::int AS weekday,
            COALESCE(SUM(CASE WHEN type = 'sale' THEN amount ELSE 0 END), 0) AS revenue,
            COALESCE(SUM(CASE WHEN type = 'sale' THEN quantity ELSE 0 END), 0) AS quantity
          FROM operations o
          WHERE o.type = 'sale' ${dateFilter}
          GROUP BY weekday
-         ORDER BY weekday`
-      )
-      .all(...params);
+         ORDER BY weekday`,
+        params
+      );
 
-    const weekdayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-    const byWeekday = weekdayNames.map((name, idx) => {
-      const found = weekdayRaw.find((r) => r.weekday === idx);
-      return {
-        weekday: idx,
-        label: name,
-        revenue: found ? found.revenue : 0,
-        quantity: found ? found.quantity : 0,
-      };
-    });
+      const weekdayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+      const byWeekday = weekdayNames.map((name, idx) => {
+        const found = weekdayRaw.find((r) => Number(r.weekday) === idx);
+        return {
+          weekday: idx,
+          label: name,
+          revenue: found ? Number(found.revenue) || 0 : 0,
+          quantity: found ? Number(found.quantity) || 0 : 0,
+        };
+      });
 
-    const byMonth = db
-      .prepare(
+      const byMonth = (await sql(
         `SELECT
-           strftime('%Y-%m', o.date) AS month,
+           to_char(o.date AT TIME ZONE 'UTC', 'YYYY-MM') AS month,
            COALESCE(SUM(CASE WHEN type = 'sale' THEN amount ELSE 0 END), 0) AS revenue,
            COALESCE(SUM(CASE WHEN type = 'sale' THEN quantity ELSE 0 END), 0) AS quantity
          FROM operations o
          WHERE o.type = 'sale' ${dateFilter}
          GROUP BY month
-         ORDER BY month`
-      )
-      .all(...params);
+         ORDER BY month`,
+        params
+      )).map((r) => ({
+        month: r.month,
+        revenue: Number(r.revenue) || 0,
+        quantity: Number(r.quantity) || 0,
+      }));
 
-    const byCategory = db
-      .prepare(
+      const byCategory = (await sql(
         `SELECT
            COALESCE(c.id, 0) AS category_id,
            COALESCE(c.name, 'Без группы') AS category_name,
@@ -126,18 +125,22 @@ function createAnalyticsRouter(db) {
          LEFT JOIN categories c ON c.id = p.category_id
          WHERE o.type = 'sale' ${dateFilter}
          GROUP BY COALESCE(c.id, 0), COALESCE(c.name, 'Без группы')
-         ORDER BY revenue DESC`
-      )
-      .all(...params);
+         ORDER BY revenue DESC`,
+        params
+      )).map((r) => ({
+        category_id: Number(r.category_id) || 0,
+        category_name: r.category_name,
+        revenue: Number(r.revenue) || 0,
+        quantity: Number(r.quantity) || 0,
+      }));
 
-    const categoryTotal = byCategory.reduce((s, r) => s + r.revenue, 0) || 1;
-    const topGroups = byCategory.map((r) => ({
-      ...r,
-      share: Math.round((r.revenue / categoryTotal) * 1000) / 10,
-    }));
+      const categoryTotal = byCategory.reduce((s, r) => s + r.revenue, 0) || 1;
+      const topGroups = byCategory.map((r) => ({
+        ...r,
+        share: Math.round((r.revenue / categoryTotal) * 1000) / 10,
+      }));
 
-    const topProducts = db
-      .prepare(
+      const topProducts = (await sql(
         `SELECT
            p.id AS product_id,
            p.name AS product_name,
@@ -148,15 +151,19 @@ function createAnalyticsRouter(db) {
          JOIN products p ON p.id = o.product_id
          JOIN categories c ON c.id = p.category_id
          WHERE o.type = 'sale' ${dateFilter}
-         GROUP BY p.id
+         GROUP BY p.id, p.name, c.name
          ORDER BY revenue DESC
-         LIMIT 10`
-      )
-      .all(...params);
+         LIMIT 10`,
+        params
+      )).map((r) => ({
+        product_id: Number(r.product_id),
+        product_name: r.product_name,
+        category_name: r.category_name,
+        quantity: Number(r.quantity) || 0,
+        revenue: Number(r.revenue) || 0,
+      }));
 
-    // Dead stock: purchased, sold least (including never sold)
-    const deadStock = db
-      .prepare(
+      const deadStock = (await sql(
         `SELECT
            p.id AS product_id,
            p.name AS product_name,
@@ -167,33 +174,42 @@ function createAnalyticsRouter(db) {
          FROM products p
          JOIN categories c ON c.id = p.category_id
          LEFT JOIN operations o ON o.product_id = p.id
-         GROUP BY p.id
-         HAVING purchased_qty > 0
+         GROUP BY p.id, p.name, c.name
+         HAVING COALESCE(SUM(CASE WHEN o.type = 'purchase' THEN o.quantity ELSE 0 END), 0) > 0
          ORDER BY sold_qty ASC, purchase_amount DESC
          LIMIT 10`
-      )
-      .all();
+      )).map((r) => ({
+        product_id: Number(r.product_id),
+        product_name: r.product_name,
+        category_name: r.category_name,
+        purchased_qty: Number(r.purchased_qty) || 0,
+        sold_qty: Number(r.sold_qty) || 0,
+        purchase_amount: Number(r.purchase_amount) || 0,
+      }));
 
-    res.json({
-      period: period === 'all' ? 'all' : 'month',
-      summary: {
-        revenue,
-        costs,
-        purchases: Number(summary.purchases) || 0,
-        expenses: Number(summary.expenses) || 0,
-        profit,
-        sold_qty: Number(summary.sold_qty) || 0,
-        sale_count: saleCount,
-        average_check: Math.round(averageCheck * 100) / 100,
-      },
-      dynamics,
-      by_weekday: byWeekday,
-      by_month: byMonth,
-      by_category: byCategory,
-      top_products: topProducts,
-      top_groups: topGroups,
-      dead_stock: deadStock,
-    });
+      res.json({
+        period: period === 'all' ? 'all' : 'month',
+        summary: {
+          revenue,
+          costs,
+          purchases: Number(summary.purchases) || 0,
+          expenses: Number(summary.expenses) || 0,
+          profit,
+          sold_qty: Number(summary.sold_qty) || 0,
+          sale_count: saleCount,
+          average_check: Math.round(averageCheck * 100) / 100,
+        },
+        dynamics,
+        by_weekday: byWeekday,
+        by_month: byMonth,
+        by_category: byCategory,
+        top_products: topProducts,
+        top_groups: topGroups,
+        dead_stock: deadStock,
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 
   return router;

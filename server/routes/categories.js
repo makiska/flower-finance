@@ -1,11 +1,16 @@
 const express = require('express');
+const { sql } = require('../db');
 
-function createCategoriesRouter(db) {
+function createCategoriesRouter() {
   const router = express.Router();
 
-  router.get('/', (_req, res) => {
-    const rows = db.prepare('SELECT id, name FROM categories ORDER BY name').all();
-    res.json(rows);
+  router.get('/', async (_req, res, next) => {
+    try {
+      const rows = await sql('SELECT id, name FROM categories ORDER BY name');
+      res.json(rows);
+    } catch (err) {
+      next(err);
+    }
   });
 
   return router;

@@ -1,11 +1,11 @@
 # Цветочный учёт — Telegram Mini App
 
-Node.js + Express + SQLite + Vanilla JS.
+Node.js + Express + Postgres (Cursor Apps) / PGlite locally + Vanilla JS.
 
 ```bash
 npm install
-npm run seed   # опционально
-npm start      # http://localhost:3000
+env -u DATABASE_URL npm start   # http://localhost:3000
+npm run build                   # apply migrations when DATABASE_URL is set
 ```
 
-Подробности: см. `/cursor/stores/self/docs/mini-app-plan.md`.
+On Cursor hosting, `cursor-app.json` provisions Postgres; data persists across restarts.
