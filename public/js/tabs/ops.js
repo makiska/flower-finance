@@ -4,12 +4,10 @@ import {
   openModal,
   closeModal,
   showToast,
-  formatMoney,
   typeLabel,
 } from '../utils.js';
 import { haptic } from '../telegram.js';
 
-/** Fixed groups — always offered when creating a position. */
 const FIXED_GROUPS = [
   'Ароидные',
   'Хойи',
@@ -29,14 +27,13 @@ async function getCategories() {
   return categoriesCache;
 }
 
-async function groupSelectOptions() {
+async function groupOptions() {
   const cats = await getCategories();
   const byName = Object.fromEntries(cats.map((c) => [c.name, c]));
   let options = FIXED_GROUPS.map((name) => {
     const row = byName[name];
     return row ? { id: row.id, name: row.name } : null;
   }).filter(Boolean);
-
   if (!options.length) {
     categoriesCache = null;
     const retry = await getCategories();
@@ -45,10 +42,7 @@ async function groupSelectOptions() {
       return row ? { id: row.id, name: row.name } : null;
     }).filter(Boolean);
   }
-  if (!options.length && cats.length) {
-    return cats.map((c) => ({ id: c.id, name: c.name }));
-  }
-  return options;
+  return options.length ? options : cats.map((c) => ({ id: c.id, name: c.name }));
 }
 
 export async function renderOps(root, ctx) {
@@ -56,16 +50,11 @@ export async function renderOps(root, ctx) {
     <section class="space-y-4">
       <div class="card-soft">
         <h2 class="mb-2 text-lg font-semibold">Новая операция</h2>
-        <p class="mb-4 text-sm text-soil-700/70">Выберите тип — откроется форма с крупными полями.</p>
         <div class="grid grid-cols-1 gap-3">
           <button type="button" data-type="sale" class="btn-primary w-full text-base">+ Продажа</button>
           <button type="button" data-type="purchase" class="btn-secondary w-full text-base">+ Закупка</button>
           <button type="button" data-type="expense" class="btn-secondary w-full text-base">+ Расходник</button>
         </div>
-      </div>
-      <div class="card-soft text-sm text-soil-700/70">
-        <p class="font-medium text-soil-900 mb-1">Подсказка</p>
-        <p>В продаже и закупке выберите растение из списка или нажмите <strong>Создать новую позицию</strong> и укажите группу.</p>
       </div>
     </section>
   `;
@@ -79,11 +68,8 @@ export async function renderOps(root, ctx) {
 }
 
 export function openOpsForm(type, ctx) {
-  if (type === 'expense') {
-    openExpenseForm(ctx);
-  } else {
-    openProductOpForm(type, ctx);
-  }
+  if (type === 'expense') openExpenseForm(ctx);
+  else openProductOpForm(type, ctx);
 }
 
 function openExpenseForm(ctx) {
@@ -137,58 +123,55 @@ function openProductOpForm(type, ctx) {
   const title = type === 'sale' ? 'Продажа' : 'Закупка';
   let selected = null;
   let searchTimer = null;
-  let createOpen = false;
-  let selectedGroupId = null;
   let productsCache = [];
+  let selectedGroupId = null;
+  let createBuilt = false;
 
   const sheet = openModal(`
     <div class="mb-4 flex items-center justify-between">
       <h3 class="text-lg font-semibold">${title}</h3>
       <button type="button" id="modal-close" class="btn-secondary !min-h-[44px] !px-3">Закрыть</button>
     </div>
-    <form id="op-form" class="space-y-3">
-      <label class="block">
-        <span class="mb-1 block text-sm font-medium">1. Найдите растение</span>
-        <input class="field" id="product-search" type="search" autocomplete="off" placeholder="Начните вводить название…" />
-      </label>
+    <form id="op-form" class="nom-form">
+      <input
+        class="field"
+        id="product-search"
+        type="search"
+        autocomplete="off"
+        placeholder="Название растения…"
+      />
 
-      <div id="selected-product" class="selected-product-banner empty">
-        <div class="min-w-0 flex-1">
-          <div class="text-xs font-semibold uppercase tracking-wide opacity-70">Выбрано</div>
-          <div id="selected-product-text" class="text-base font-semibold">Пока ничего — нажмите позицию в списке</div>
-        </div>
-      </div>
+      <div id="product-results" class="nom-results" role="listbox"></div>
 
-      <div class="product-picker">
-        <div class="product-picker-label">2. Список — нажмите нужную строку</div>
-        <div id="product-results" class="product-results" role="listbox"></div>
-      </div>
-
-      <button type="button" id="open-create" class="btn-secondary w-full !min-h-[52px] text-base">
+      <button type="button" id="open-create" class="btn-primary w-full !min-h-[52px] text-base hidden">
         + Создать новую позицию
       </button>
 
-      <div id="create-new" class="hidden space-y-3 rounded-2xl border-2 border-leaf-500 bg-leaf-50 p-4"></div>
+      <div id="create-panel" class="nom-create hidden"></div>
 
-      <div class="grid grid-cols-2 gap-2">
+      <div id="selected-line" class="nom-selected hidden"></div>
+
+      <div class="nom-amounts">
+        <div class="grid grid-cols-2 gap-2">
+          <label class="block">
+            <span class="mb-1 block text-sm font-medium">Кол-во</span>
+            <input class="field" name="quantity" type="number" inputmode="numeric" min="1" step="1" value="1" required />
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-sm font-medium">Цена за ед., ₽</span>
+            <input class="field" name="unit_price" type="number" inputmode="decimal" min="0" step="1" required placeholder="0" />
+          </label>
+        </div>
         <label class="block">
-          <span class="mb-1 block text-sm font-medium">Кол-во</span>
-          <input class="field" name="quantity" type="number" inputmode="numeric" min="1" step="1" value="1" required />
+          <span class="mb-1 block text-sm font-medium">Или сумма, ₽</span>
+          <input class="field" name="amount" type="number" inputmode="decimal" min="0" step="1" placeholder="необязательно" />
         </label>
         <label class="block">
-          <span class="mb-1 block text-sm font-medium">Цена за ед., ₽</span>
-          <input class="field" name="unit_price" type="number" inputmode="decimal" min="0" step="1" required placeholder="0" />
+          <span class="mb-1 block text-sm font-medium">Комментарий</span>
+          <input class="field" name="comment" type="text" maxlength="200" placeholder="необязательно" />
         </label>
+        <button type="submit" class="btn-primary w-full">Сохранить</button>
       </div>
-      <label class="block">
-        <span class="mb-1 block text-sm font-medium">Или общая сумма, ₽</span>
-        <input class="field" name="amount" type="number" inputmode="decimal" min="0" step="1" placeholder="необязательно" />
-      </label>
-      <label class="block">
-        <span class="mb-1 block text-sm font-medium">Комментарий</span>
-        <input class="field" name="comment" type="text" maxlength="200" placeholder="необязательно" />
-      </label>
-      <button type="submit" class="btn-primary w-full">Сохранить операцию</button>
     </form>
   `);
 
@@ -199,80 +182,79 @@ function openProductOpForm(type, ctx) {
 
   const searchInput = sheet.querySelector('#product-search');
   const results = sheet.querySelector('#product-results');
-  const selectedBox = sheet.querySelector('#selected-product');
-  const selectedText = sheet.querySelector('#selected-product-text');
-  const createNew = sheet.querySelector('#create-new');
   const openCreateBtn = sheet.querySelector('#open-create');
+  const createPanel = sheet.querySelector('#create-panel');
+  const selectedLine = sheet.querySelector('#selected-line');
   const form = sheet.querySelector('#op-form');
+
+  function hideCreate() {
+    createPanel.classList.add('hidden');
+  }
 
   function setSelected(product) {
     selected = product;
-    selectedBox.classList.remove('empty');
-    const group = product.category_name
-      ? `Группа: ${escapeHtml(product.category_name)}`
-      : '';
-    selectedText.innerHTML = `${escapeHtml(product.name)}${
-      group ? `<div class="mt-0.5 text-sm font-medium opacity-80">${group}</div>` : ''
-    }`;
+    selectedLine.classList.remove('hidden');
+    selectedLine.innerHTML = `
+      <div class="text-xs uppercase tracking-wide opacity-70">Выбрано</div>
+      <div class="text-base font-semibold">${escapeHtml(product.name)}</div>
+      <div class="text-sm opacity-80">${escapeHtml(product.category_name || '')}</div>
+    `;
     results.querySelectorAll('.search-hit').forEach((el) => {
       const on = Number(el.dataset.id) === Number(product.id);
       el.classList.toggle('selected', on);
-      el.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     haptic('light');
   }
 
-  // Event delegation — survives list re-renders, works on mobile WebView.
   results.addEventListener('click', (e) => {
     const btn = e.target.closest('.search-hit');
-    if (!btn || !results.contains(btn)) return;
+    if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
-    const id = Number(btn.dataset.id);
-    const product = productsCache.find((p) => Number(p.id) === id);
-    if (product) setSelected(product);
+    const product = productsCache.find((p) => Number(p.id) === Number(btn.dataset.id));
+    if (!product) return;
+    setSelected(product);
+    hideCreate();
+    openCreateBtn.classList.add('hidden');
   });
 
-  function paintGroupChips() {
-    createNew.querySelectorAll('[data-group-id]').forEach((btn) => {
+  function paintGroups() {
+    createPanel.querySelectorAll('[data-group-id]').forEach((btn) => {
       const on = Number(btn.dataset.groupId) === Number(selectedGroupId);
       btn.classList.toggle('group-chip-active', on);
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
   }
 
-  async function ensureCreatePanel(nameHint = '', { emphasize = false } = {}) {
-    const options = await groupSelectOptions();
-    const name = (nameHint || searchInput.value || '').trim();
+  async function openCreatePanel() {
+    const options = await groupOptions();
+    const prefill = searchInput.value.trim();
+    if (!selectedGroupId && options[0]) selectedGroupId = options[0].id;
 
-    if (!createOpen) {
-      createOpen = true;
-      createNew.classList.remove('hidden');
-      if (!selectedGroupId && options[0]) selectedGroupId = options[0].id;
-
-      createNew.innerHTML = `
-        <p class="text-lg font-bold text-leaf-800">Создать новую позицию</p>
-        <p class="text-sm text-soil-700">Укажите название и нажмите группу (список фиксированный).</p>
-        <label class="block">
+    if (!createBuilt) {
+      createBuilt = true;
+      createPanel.innerHTML = `
+        <div class="mb-2 text-base font-semibold">Новая позиция</div>
+        <label class="block mb-3">
           <span class="mb-1 block text-sm font-medium">Название</span>
-          <input class="field" id="new-product-name" type="text" maxlength="120" placeholder="Например: Хойя карноза" />
+          <input class="field" id="new-product-name" type="text" maxlength="120" />
         </label>
-        <div>
+        <div class="mb-3">
           <div class="mb-2 text-sm font-medium">Группа</div>
-          <div id="group-chips" class="group-chips" role="group" aria-label="Группа"></div>
+          <div id="group-chips" class="group-chips"></div>
         </div>
-        <button type="button" id="create-product" class="btn-primary w-full !min-h-[56px] text-base">
-          + Создать и выбрать
+        <button type="button" id="create-product" class="btn-primary w-full !min-h-[52px]">
+          Создать и выбрать
         </button>
       `;
 
-      const chips = createNew.querySelector('#group-chips');
+      const chips = createPanel.querySelector('#group-chips');
       chips.innerHTML = options
         .map(
-          (c) => `
-          <button type="button" class="group-chip" data-group-id="${c.id}">
-            ${escapeHtml(c.name)}
-          </button>`
+          (c) =>
+            `<button type="button" class="group-chip" data-group-id="${c.id}">${escapeHtml(
+              c.name
+            )}</button>`
         )
         .join('');
 
@@ -282,18 +264,18 @@ function openProductOpForm(type, ctx) {
         e.preventDefault();
         e.stopPropagation();
         selectedGroupId = Number(btn.dataset.groupId);
-        paintGroupChips();
+        paintGroups();
         haptic('light');
       });
 
-      createNew.querySelector('#create-product').onclick = async (e) => {
+      createPanel.querySelector('#create-product').onclick = async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const nameInput = createNew.querySelector('#new-product-name');
-        const productName = String(nameInput?.value || '').trim();
-        if (!productName) {
+        const nameInput = createPanel.querySelector('#new-product-name');
+        const name = String(nameInput.value || '').trim();
+        if (!name) {
           showToast('Укажите название');
-          nameInput?.focus();
+          nameInput.focus();
           return;
         }
         if (!selectedGroupId) {
@@ -302,48 +284,50 @@ function openProductOpForm(type, ctx) {
         }
         try {
           const product = await api.createProduct({
-            name: productName,
+            name,
             category_id: selectedGroupId,
           });
-          showToast('Позиция создана');
           setSelected(product);
-          createOpen = false;
-          createNew.classList.add('hidden');
+          hideCreate();
+          openCreateBtn.classList.add('hidden');
           searchInput.value = product.name;
           await runSearch(product.name);
+          showToast('Позиция выбрана');
         } catch (err) {
           showToast(err.message);
         }
       };
     }
 
-    const nameInput = createNew.querySelector('#new-product-name');
-    if (nameInput && name && document.activeElement !== nameInput) {
-      nameInput.value = name;
+    createPanel.classList.remove('hidden');
+    const nameInput = createPanel.querySelector('#new-product-name');
+    if (nameInput) {
+      nameInput.value = prefill;
+      nameInput.focus();
     }
-    paintGroupChips();
-    createNew.classList.toggle('create-emphasize', emphasize);
+    paintGroups();
   }
 
   async function runSearch(q) {
+    const needle = q.trim();
     try {
-      const raw = await api.getProducts(q);
+      const raw = needle ? await api.getProducts(needle) : [];
       productsCache = Array.isArray(raw) ? raw : [];
-      const needle = q.trim();
-      const exact = productsCache.some(
-        (p) => String(p.name || '').toLowerCase() === needle.toLowerCase()
-      );
-      const emptyCatalog = productsCache.length === 0;
 
-      results.innerHTML = productsCache.length
-        ? productsCache
-            .map(
-              (p) => `
+      if (!needle) {
+        results.innerHTML = '';
+        openCreateBtn.classList.add('hidden');
+        hideCreate();
+        return;
+      }
+
+      if (productsCache.length) {
+        results.innerHTML = productsCache
+          .map(
+            (p) => `
             <button type="button" class="search-hit ${
               selected && Number(selected.id) === Number(p.id) ? 'selected' : ''
-            }" data-id="${p.id}" role="option" aria-selected="${
-                selected && Number(selected.id) === Number(p.id) ? 'true' : 'false'
-              }">
+            }" data-id="${p.id}">
               <span class="min-w-0 pointer-events-none">
                 <span class="block text-base font-semibold leading-tight">${escapeHtml(p.name)}</span>
                 <span class="mt-0.5 block text-sm text-soil-700/70">${escapeHtml(
@@ -352,23 +336,20 @@ function openProductOpForm(type, ctx) {
               </span>
               <span class="search-hit-check pointer-events-none" aria-hidden="true">✓</span>
             </button>`
-            )
-            .join('')
-        : `<p class="px-3 py-4 text-sm text-soil-700/70">${
-            needle
-              ? 'Ничего не найдено — создайте новую позицию ниже.'
-              : 'Начните ввод или создайте новую позицию.'
-          }</p>`;
-
-      // Open create when useful; do NOT rebuild the panel on every keystroke.
-      if (createOpen || (needle && !exact) || (needle && emptyCatalog)) {
-        await ensureCreatePanel(needle, { emphasize: emptyCatalog || (needle && !exact) });
+          )
+          .join('');
+        openCreateBtn.classList.add('hidden');
+        // Don't yank the create form while the user is typing a new name.
+        if (document.activeElement?.id !== 'new-product-name') {
+          hideCreate();
+        }
+      } else {
+        results.innerHTML = '';
+        openCreateBtn.classList.remove('hidden');
       }
     } catch (err) {
-      results.innerHTML = `<p class="px-3 py-4 text-sm text-petal-600">${escapeHtml(
-        err.message
-      )}</p>`;
-      await ensureCreatePanel(searchInput.value.trim(), { emphasize: true });
+      results.innerHTML = `<p class="py-3 text-sm text-petal-600">${escapeHtml(err.message)}</p>`;
+      openCreateBtn.classList.remove('hidden');
     }
   }
 
@@ -376,21 +357,18 @@ function openProductOpForm(type, ctx) {
     e.preventDefault();
     e.stopPropagation();
     haptic('light');
-    await ensureCreatePanel(searchInput.value.trim(), { emphasize: true });
-    createNew.querySelector('#new-product-name')?.focus();
+    await openCreatePanel();
   };
 
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => runSearch(searchInput.value.trim()), 220);
+    searchTimer = setTimeout(() => runSearch(searchInput.value), 200);
   });
-
-  runSearch('');
 
   form.onsubmit = async (e) => {
     e.preventDefault();
     if (!selected) {
-      showToast('Выберите или создайте позицию');
+      showToast('Выберите растение из списка или создайте новое');
       return;
     }
     const fd = new FormData(form);
@@ -399,7 +377,6 @@ function openProductOpForm(type, ctx) {
     const amountRaw = String(fd.get('amount') || '').trim();
     const amount = amountRaw !== '' ? Number(amountRaw) : unitPrice * quantity;
     const comment = String(fd.get('comment') || '').trim() || null;
-
     try {
       await api.createOperation({
         type,
