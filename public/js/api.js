@@ -1,6 +1,15 @@
+function authHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  const initData = window.Telegram?.WebApp?.initData;
+  if (initData) {
+    headers['X-Telegram-Init-Data'] = initData;
+  }
+  return headers;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: { ...authHeaders(), ...(options.headers || {}) },
     ...options,
   });
 
