@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "build": "node scripts/migrate.mjs",
-    "seed": "node scripts/seed-demo.js"
+    "build": "npm run css:build && node scripts/migrate.mjs",
+    "seed": "node scripts/seed-demo.js",
+    "css:build": "tailwindcss -i ./public/css/tailwind-input.css -o ./public/css/tailwind.css --minify"
   },
   "engines": {
     "node": ">=18"
@@ -16,5 +17,8 @@
     "@electric-sql/pglite": "^0.2.17",
     "express": "^4.21.2",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
   }
 }

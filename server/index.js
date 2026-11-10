@@ -1,6 +1,7 @@
 const path = require('path');
 const express = require('express');
 const { initDb, usingPostgres } = require('./db');
+const { requireAppAuth } = require('./auth');
 const { createCategoriesRouter } = require('./routes/categories');
 const { createProductsRouter } = require('./routes/products');
 const { createOperationsRouter } = require('./routes/operations');
@@ -13,10 +14,19 @@ async function main() {
 
   const app = express();
 
-  app.use(express.json());
-  app.use(express.static(path.join(__dirname, '..', 'public')));
+  app.use(express.json({ limit: '64kb' }));
+  app.use(express.static(path.join(__dirname, '..', 'public'), {
+    setHeaders(res) {
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
+  }));
+
+  // All API routes require Telegram Mini App session and/or Cursor identity.
+  app.use('/api', requireAppAuth());
 
   app.get('/api/health', (_req, res) => {
+    res.setHeader('Cache-Control', 'private, no-store');
     res.json({ ok: true, db: usingPostgres ? 'postgres' : 'pglite' });
   });
 

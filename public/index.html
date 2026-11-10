@@ -4,24 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Цветочный учёт</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            leaf: { 50: '#f3faf4', 100: '#e3f4e6', 500: '#2f7d4a', 600: '#24663c', 700: '#1b5130' },
-            soil: { 50: '#faf7f2', 100: '#f0e8dc', 700: '#5a4634', 900: '#2c2118' },
-            petal: { 500: '#c45c6a', 600: '#a84856' },
-          },
-          minHeight: { touch: '44px' },
-          minWidth: { touch: '44px' },
-        },
-      },
-    };
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="/vendor/telegram-web-app.js" defer></script>
+  <script src="/vendor/chart.umd.min.js" defer></script>
+  <link rel="stylesheet" href="/css/tailwind.css" />
   <link rel="stylesheet" href="/css/app.css" />
 </head>
 <body class="bg-soil-50 text-soil-900 antialiased">
