@@ -19,30 +19,36 @@ const FIXED_GROUPS = [
 
 let categoriesCache = null;
 
-async function getCategories() {
+async function getCategories({ force = false } = {}) {
+  if (force) categoriesCache = null;
   if (!categoriesCache) {
-    const rows = await api.getCategories();
-    categoriesCache = Array.isArray(rows) ? rows : [];
+    try {
+      const rows = await api.getCategories();
+      categoriesCache = Array.isArray(rows) ? rows : [];
+    } catch {
+      categoriesCache = [];
+    }
   }
   return categoriesCache;
 }
 
-async function groupOptions() {
-  const cats = await getCategories();
+/** Always six fixed chips — never an empty «Группа» block. Ids filled when API has them. */
+async function groupOptions({ force = false } = {}) {
+  const cats = await getCategories({ force });
   const byName = Object.fromEntries(cats.map((c) => [c.name, c]));
   let options = FIXED_GROUPS.map((name) => {
     const row = byName[name];
-    return row ? { id: row.id, name: row.name } : null;
-  }).filter(Boolean);
-  if (!options.length) {
-    categoriesCache = null;
-    const retry = await getCategories();
+    return { id: row ? Number(row.id) : null, name };
+  });
+  if (options.every((o) => o.id == null)) {
+    const retry = await getCategories({ force: true });
+    const retryByName = Object.fromEntries(retry.map((c) => [c.name, c]));
     options = FIXED_GROUPS.map((name) => {
-      const row = retry.find((c) => c.name === name);
-      return row ? { id: row.id, name: row.name } : null;
-    }).filter(Boolean);
+      const row = retryByName[name];
+      return { id: row ? Number(row.id) : null, name };
+    });
   }
-  return options.length ? options : cats.map((c) => ({ id: c.id, name: c.name }));
+  return options;
 }
 
 export async function renderOps(root, ctx) {
@@ -125,6 +131,7 @@ function openProductOpForm(type, ctx) {
   let searchTimer = null;
   let productsCache = [];
   let selectedGroupId = null;
+  let selectedGroupName = null;
   let createBuilt = false;
 
   const sheet = openModal(`
@@ -219,17 +226,36 @@ function openProductOpForm(type, ctx) {
   });
 
   function paintGroups() {
-    createPanel.querySelectorAll('[data-group-id]').forEach((btn) => {
-      const on = Number(btn.dataset.groupId) === Number(selectedGroupId);
+    createPanel.querySelectorAll('[data-group-name]').forEach((btn) => {
+      const on = btn.dataset.groupName === selectedGroupName;
       btn.classList.toggle('group-chip-active', on);
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
   }
 
+  function renderGroupChips(options) {
+    const chips = createPanel.querySelector('#group-chips');
+    if (!chips) return;
+    chips.innerHTML = options
+      .map((c) => {
+        const idAttr = c.id != null ? ` data-group-id="${c.id}"` : '';
+        return `<button type="button" class="group-chip" data-group-name="${escapeHtml(
+          c.name
+        )}"${idAttr}>${escapeHtml(c.name)}</button>`;
+      })
+      .join('');
+  }
+
   async function openCreatePanel() {
-    const options = await groupOptions();
+    const options = await groupOptions({ force: !createBuilt });
     const prefill = searchInput.value.trim();
-    if (!selectedGroupId && options[0]) selectedGroupId = options[0].id;
+    if (!selectedGroupName && options[0]) {
+      selectedGroupName = options[0].name;
+      selectedGroupId = options[0].id;
+    } else if (selectedGroupName) {
+      const match = options.find((o) => o.name === selectedGroupName);
+      if (match) selectedGroupId = match.id;
+    }
 
     if (!createBuilt) {
       createBuilt = true;
@@ -248,22 +274,13 @@ function openProductOpForm(type, ctx) {
         </button>
       `;
 
-      const chips = createPanel.querySelector('#group-chips');
-      chips.innerHTML = options
-        .map(
-          (c) =>
-            `<button type="button" class="group-chip" data-group-id="${c.id}">${escapeHtml(
-              c.name
-            )}</button>`
-        )
-        .join('');
-
-      chips.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-group-id]');
+      createPanel.querySelector('#group-chips').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-group-name]');
         if (!btn) return;
         e.preventDefault();
         e.stopPropagation();
-        selectedGroupId = Number(btn.dataset.groupId);
+        selectedGroupName = btn.dataset.groupName;
+        selectedGroupId = btn.dataset.groupId ? Number(btn.dataset.groupId) : null;
         paintGroups();
         haptic('light');
       });
@@ -278,15 +295,24 @@ function openProductOpForm(type, ctx) {
           nameInput.focus();
           return;
         }
-        if (!selectedGroupId) {
+        if (!selectedGroupName) {
           showToast('Выберите группу');
           return;
         }
         try {
-          const product = await api.createProduct({
+          if (selectedGroupId == null) {
+            const fresh = await groupOptions({ force: true });
+            const match = fresh.find((o) => o.name === selectedGroupName);
+            selectedGroupId = match?.id ?? null;
+            renderGroupChips(fresh);
+            paintGroups();
+          }
+          const body = {
             name,
-            category_id: selectedGroupId,
-          });
+            category_name: selectedGroupName,
+          };
+          if (selectedGroupId != null) body.category_id = selectedGroupId;
+          const product = await api.createProduct(body);
           setSelected(product);
           hideCreate();
           openCreateBtn.classList.add('hidden');
@@ -299,6 +325,7 @@ function openProductOpForm(type, ctx) {
       };
     }
 
+    renderGroupChips(options);
     createPanel.classList.remove('hidden');
     const nameInput = createPanel.querySelector('#new-product-name');
     if (nameInput) {

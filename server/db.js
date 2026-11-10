@@ -1,6 +1,7 @@
 const { readdir, readFile } = require('node:fs/promises');
 const path = require('node:path');
 const pg = require('pg');
+const { FIXED_CATEGORY_NAMES } = require('./fixedCategories');
 
 const databaseUrl = process.env.DATABASE_URL?.trim() ?? '';
 const migrationsDir = path.join(__dirname, '..', 'migrations');
@@ -48,16 +49,32 @@ async function startLocal() {
   return db;
 }
 
-/** Ensure local/PGlite schema is ready (no-op when DATABASE_URL is set — migrate.mjs handles that). */
+/** Idempotent seed of the six fixed groups (safe if migrate already inserted them). */
+async function ensureFixedCategories() {
+  for (const name of FIXED_CATEGORY_NAMES) {
+    await sql(
+      'INSERT INTO categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
+      [name]
+    );
+  }
+}
+
+/**
+ * Local: apply migrations via PGlite boot.
+ * Postgres: schema comes from migrate.mjs on build; still re-seed fixed categories
+ * so an empty live table cannot leave the create UI without groups.
+ */
 async function initDb() {
   if (databaseUrl === '') {
     await sql('SELECT 1');
   }
+  await ensureFixedCategories();
 }
 
 module.exports = {
   sql,
   sqlOne,
   initDb,
+  ensureFixedCategories,
   usingPostgres: databaseUrl !== '',
 };
