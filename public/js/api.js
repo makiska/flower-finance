@@ -21,11 +21,19 @@ async function request(path, options = {}) {
   return data;
 }
 
+/** Normalize list endpoints that must be JSON arrays. */
+function asArray(data) {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.rows)) return data.rows;
+  if (data && Array.isArray(data.items)) return data.items;
+  return [];
+}
+
 export const api = {
-  getCategories: () => request('/api/categories'),
-  getProducts: (search = '') => {
+  getCategories: async () => asArray(await request('/api/categories')),
+  getProducts: async (search = '') => {
     const q = search ? `?search=${encodeURIComponent(search)}` : '';
-    return request(`/api/products${q}`);
+    return asArray(await request(`/api/products${q}`));
   },
   createProduct: (body) =>
     request('/api/products', { method: 'POST', body: JSON.stringify(body) }),
