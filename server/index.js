@@ -3,7 +3,7 @@ const express = require('express');
 const { initDb, usingPostgres } = require('./db');
 const { requireAppAuth, assertAuthed } = require('./auth');
 const { createCategoriesRouter } = require('./routes/categories');
-const { createProductsRouter } = require('./routes/products');
+const { createProductsRouter, createProductHandler } = require('./routes/products');
 const { createOperationsRouter } = require('./routes/operations');
 const { createAnalyticsRouter } = require('./routes/analytics');
 
@@ -34,6 +34,8 @@ async function main() {
   });
 
   app.use('/api/categories', createCategoriesRouter());
+  // Dedicated create path — hosting returns 405 for POST /api/products (static).
+  app.post('/api/product-create', createProductHandler);
   app.use('/api/products', createProductsRouter());
   app.use('/api/operations', createOperationsRouter());
   app.use('/api/analytics', createAnalyticsRouter());
