@@ -51,7 +51,7 @@ export const api = {
     return asArray(await request(`/api/products${q}`));
   },
   createProduct: (body) =>
-    request('/api/products/create', {
+    request('/api/products', {
       method: 'POST',
       body: JSON.stringify(body),
     }),

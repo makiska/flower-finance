@@ -13,10 +13,11 @@ async function main() {
   await initDb();
 
   const app = express();
+  const productsRouter = createProductsRouter();
 
   app.use(express.json({ limit: '64kb' }));
 
-  // API first — never let static middleware answer POST/PUT/DELETE with 405.
+  // API before static — otherwise POST can get 405 from the static layer.
   app.use('/api', requireAppAuth());
   app.use('/api', (req, res, next) => {
     if (!assertAuthed(req, res)) return;
@@ -33,18 +34,16 @@ async function main() {
   });
 
   app.use('/api/categories', createCategoriesRouter());
-  app.use('/api/products', createProductsRouter());
+
+  // Explicit POST /api/products so create-nomenclature always has a POST handler.
+  app.post('/api/products', (req, res, next) => {
+    req.url = '/';
+    productsRouter(req, res, next);
+  });
+  app.use('/api/products', productsRouter);
+
   app.use('/api/operations', createOperationsRouter());
   app.use('/api/analytics', createAnalyticsRouter());
-
-  app.use('/api', (req, res) => {
-    res.setHeader('Allow', 'GET, POST, PUT, DELETE');
-    res.status(405).json({
-      error: 'Метод не поддерживается для этого API',
-      method: req.method,
-      path: req.path,
-    });
-  });
 
   app.use(
     express.static(path.join(__dirname, '..', 'public'), {
