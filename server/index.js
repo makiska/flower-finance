@@ -13,16 +13,11 @@ async function main() {
   await initDb();
 
   const app = express();
+  const productsRouter = createProductsRouter();
 
   app.use(express.json({ limit: '64kb' }));
-  app.use(express.static(path.join(__dirname, '..', 'public'), {
-    setHeaders(res) {
-      res.setHeader('Cache-Control', 'private, no-store');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-    },
-  }));
 
-  // All API routes require Telegram allowlisted session and/or Cursor identity.
+  // API before static — otherwise POST can get 405 from the static layer.
   app.use('/api', requireAppAuth());
   app.use('/api', (req, res, next) => {
     if (!assertAuthed(req, res)) return;
@@ -39,9 +34,26 @@ async function main() {
   });
 
   app.use('/api/categories', createCategoriesRouter());
-  app.use('/api/products', createProductsRouter());
+
+  // Explicit POST /api/products so create-nomenclature always has a POST handler.
+  app.post('/api/products', (req, res, next) => {
+    req.url = '/';
+    productsRouter(req, res, next);
+  });
+  app.use('/api/products', productsRouter);
+
   app.use('/api/operations', createOperationsRouter());
   app.use('/api/analytics', createAnalyticsRouter());
+
+  app.use(
+    express.static(path.join(__dirname, '..', 'public'), {
+      fallthrough: true,
+      setHeaders(res) {
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      },
+    })
+  );
 
   app.use((err, _req, res, _next) => {
     console.error(err);

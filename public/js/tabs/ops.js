@@ -17,34 +17,6 @@ const FIXED_GROUPS = [
   'Расходники',
 ];
 
-let categoriesCache = null;
-
-async function getCategories() {
-  if (!categoriesCache) {
-    const rows = await api.getCategories();
-    categoriesCache = Array.isArray(rows) ? rows : [];
-  }
-  return categoriesCache;
-}
-
-async function groupOptions() {
-  const cats = await getCategories();
-  const byName = Object.fromEntries(cats.map((c) => [c.name, c]));
-  let options = FIXED_GROUPS.map((name) => {
-    const row = byName[name];
-    return row ? { id: row.id, name: row.name } : null;
-  }).filter(Boolean);
-  if (!options.length) {
-    categoriesCache = null;
-    const retry = await getCategories();
-    options = FIXED_GROUPS.map((name) => {
-      const row = retry.find((c) => c.name === name);
-      return row ? { id: row.id, name: row.name } : null;
-    }).filter(Boolean);
-  }
-  return options.length ? options : cats.map((c) => ({ id: c.id, name: c.name }));
-}
-
 export async function renderOps(root, ctx) {
   root.innerHTML = `
     <section class="space-y-4">
@@ -124,8 +96,7 @@ function openProductOpForm(type, ctx) {
   let selected = null;
   let searchTimer = null;
   let productsCache = [];
-  let selectedGroupId = null;
-  let createBuilt = false;
+  let selectedGroupName = FIXED_GROUPS[0];
 
   const sheet = openModal(`
     <div class="mb-4 flex items-center justify-between">
@@ -147,7 +118,29 @@ function openProductOpForm(type, ctx) {
         + Создать новую позицию
       </button>
 
-      <div id="create-panel" class="nom-create hidden"></div>
+      <div id="create-panel" class="nom-create hidden">
+        <div class="mb-2 text-base font-semibold">Новая позиция</div>
+        <label class="block mb-3">
+          <span class="mb-1 block text-sm font-medium">Название</span>
+          <input class="field" id="new-product-name" type="text" maxlength="120" />
+        </label>
+        <div class="mb-3">
+          <div class="mb-2 text-sm font-medium">Группа</div>
+          <div id="group-chips" class="group-chips">
+            ${FIXED_GROUPS.map(
+              (name) =>
+                `<button type="button" class="group-chip${
+                  name === selectedGroupName ? ' group-chip-active' : ''
+                }" data-group-name="${escapeHtml(name)}" aria-pressed="${
+                  name === selectedGroupName ? 'true' : 'false'
+                }">${escapeHtml(name)}</button>`
+            ).join('')}
+          </div>
+        </div>
+        <button type="button" id="create-product" class="btn-primary w-full !min-h-[52px]">
+          Создать и выбрать
+        </button>
+      </div>
 
       <div id="selected-line" class="nom-selected hidden"></div>
 
@@ -186,9 +179,26 @@ function openProductOpForm(type, ctx) {
   const createPanel = sheet.querySelector('#create-panel');
   const selectedLine = sheet.querySelector('#selected-line');
   const form = sheet.querySelector('#op-form');
+  const nameInput = sheet.querySelector('#new-product-name');
 
   function hideCreate() {
     createPanel.classList.add('hidden');
+  }
+
+  function showCreate() {
+    nameInput.value = searchInput.value.trim();
+    paintGroups();
+    createPanel.classList.remove('hidden');
+    openCreateBtn.classList.add('hidden');
+    nameInput.focus();
+  }
+
+  function paintGroups() {
+    createPanel.querySelectorAll('[data-group-name]').forEach((btn) => {
+      const on = btn.dataset.groupName === selectedGroupName;
+      btn.classList.toggle('group-chip-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
   }
 
   function setSelected(product) {
@@ -200,8 +210,7 @@ function openProductOpForm(type, ctx) {
       <div class="text-sm opacity-80">${escapeHtml(product.category_name || '')}</div>
     `;
     results.querySelectorAll('.search-hit').forEach((el) => {
-      const on = Number(el.dataset.id) === Number(product.id);
-      el.classList.toggle('selected', on);
+      el.classList.toggle('selected', Number(el.dataset.id) === Number(product.id));
     });
     haptic('light');
   }
@@ -210,7 +219,6 @@ function openProductOpForm(type, ctx) {
     const btn = e.target.closest('.search-hit');
     if (!btn) return;
     e.preventDefault();
-    e.stopPropagation();
     const product = productsCache.find((p) => Number(p.id) === Number(btn.dataset.id));
     if (!product) return;
     setSelected(product);
@@ -218,95 +226,49 @@ function openProductOpForm(type, ctx) {
     openCreateBtn.classList.add('hidden');
   });
 
-  function paintGroups() {
-    createPanel.querySelectorAll('[data-group-id]').forEach((btn) => {
-      const on = Number(btn.dataset.groupId) === Number(selectedGroupId);
-      btn.classList.toggle('group-chip-active', on);
-      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-  }
-
-  async function openCreatePanel() {
-    const options = await groupOptions();
-    const prefill = searchInput.value.trim();
-    if (!selectedGroupId && options[0]) selectedGroupId = options[0].id;
-
-    if (!createBuilt) {
-      createBuilt = true;
-      createPanel.innerHTML = `
-        <div class="mb-2 text-base font-semibold">Новая позиция</div>
-        <label class="block mb-3">
-          <span class="mb-1 block text-sm font-medium">Название</span>
-          <input class="field" id="new-product-name" type="text" maxlength="120" />
-        </label>
-        <div class="mb-3">
-          <div class="mb-2 text-sm font-medium">Группа</div>
-          <div id="group-chips" class="group-chips"></div>
-        </div>
-        <button type="button" id="create-product" class="btn-primary w-full !min-h-[52px]">
-          Создать и выбрать
-        </button>
-      `;
-
-      const chips = createPanel.querySelector('#group-chips');
-      chips.innerHTML = options
-        .map(
-          (c) =>
-            `<button type="button" class="group-chip" data-group-id="${c.id}">${escapeHtml(
-              c.name
-            )}</button>`
-        )
-        .join('');
-
-      chips.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-group-id]');
-        if (!btn) return;
-        e.preventDefault();
-        e.stopPropagation();
-        selectedGroupId = Number(btn.dataset.groupId);
-        paintGroups();
-        haptic('light');
-      });
-
-      createPanel.querySelector('#create-product').onclick = async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const nameInput = createPanel.querySelector('#new-product-name');
-        const name = String(nameInput.value || '').trim();
-        if (!name) {
-          showToast('Укажите название');
-          nameInput.focus();
-          return;
-        }
-        if (!selectedGroupId) {
-          showToast('Выберите группу');
-          return;
-        }
-        try {
-          const product = await api.createProduct({
-            name,
-            category_id: selectedGroupId,
-          });
-          setSelected(product);
-          hideCreate();
-          openCreateBtn.classList.add('hidden');
-          searchInput.value = product.name;
-          await runSearch(product.name);
-          showToast('Позиция выбрана');
-        } catch (err) {
-          showToast(err.message);
-        }
-      };
-    }
-
-    createPanel.classList.remove('hidden');
-    const nameInput = createPanel.querySelector('#new-product-name');
-    if (nameInput) {
-      nameInput.value = prefill;
-      nameInput.focus();
-    }
+  createPanel.querySelector('#group-chips').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-group-name]');
+    if (!btn) return;
+    e.preventDefault();
+    selectedGroupName = btn.dataset.groupName;
     paintGroups();
-  }
+    haptic('light');
+  });
+
+  sheet.querySelector('#create-product').onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const name = String(nameInput.value || '').trim();
+    if (!name) {
+      showToast('Укажите название');
+      nameInput.focus();
+      return;
+    }
+    if (!selectedGroupName) {
+      showToast('Выберите группу');
+      return;
+    }
+    try {
+      const product = await api.createProduct({
+        name,
+        category_name: selectedGroupName,
+      });
+      setSelected(product);
+      hideCreate();
+      openCreateBtn.classList.add('hidden');
+      searchInput.value = product.name;
+      await runSearch(product.name);
+      showToast('Позиция выбрана');
+    } catch (err) {
+      showToast(err.message);
+    }
+  };
+
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    sheet.querySelector('#create-product').click();
+  });
 
   async function runSearch(q) {
     const needle = q.trim();
@@ -339,10 +301,7 @@ function openProductOpForm(type, ctx) {
           )
           .join('');
         openCreateBtn.classList.add('hidden');
-        // Don't yank the create form while the user is typing a new name.
-        if (document.activeElement?.id !== 'new-product-name') {
-          hideCreate();
-        }
+        if (document.activeElement?.id !== 'new-product-name') hideCreate();
       } else {
         results.innerHTML = '';
         openCreateBtn.classList.remove('hidden');
@@ -353,11 +312,10 @@ function openProductOpForm(type, ctx) {
     }
   }
 
-  openCreateBtn.onclick = async (e) => {
+  openCreateBtn.onclick = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     haptic('light');
-    await openCreatePanel();
+    showCreate();
   };
 
   searchInput.addEventListener('input', () => {

@@ -1,5 +1,6 @@
 const express = require('express');
-const { sql, sqlOne } = require('../db');
+const { sql, sqlOne, ensureFixedCategories } = require('../db');
+const { FIXED_CATEGORY_NAMES } = require('../fixedCategories');
 
 function createProductsRouter() {
   const router = express.Router();
@@ -36,14 +37,25 @@ function createProductsRouter() {
     }
   });
 
-  router.post('/', async (req, res, next) => {
+  async function createProduct(req, res, next) {
     try {
       const name = String(req.body?.name || '').trim();
-      const categoryId = Number(req.body?.category_id);
+      const categoryName = String(req.body?.category_name || '').trim();
+      let categoryId = Number(req.body?.category_id);
 
       if (!name) {
         return res.status(400).json({ error: 'Укажите название товара' });
       }
+
+      if ((!Number.isInteger(categoryId) || categoryId <= 0) && categoryName) {
+        if (!FIXED_CATEGORY_NAMES.includes(categoryName)) {
+          return res.status(400).json({ error: 'Неизвестная группа' });
+        }
+        await ensureFixedCategories();
+        const byName = await sqlOne('SELECT id FROM categories WHERE name = $1', [categoryName]);
+        categoryId = byName ? Number(byName.id) : NaN;
+      }
+
       if (!Number.isInteger(categoryId) || categoryId <= 0) {
         return res.status(400).json({ error: 'Укажите категорию' });
       }
@@ -87,7 +99,11 @@ function createProductsRouter() {
     } catch (err) {
       next(err);
     }
-  });
+  }
+
+  // Collection create + explicit /create alias (avoids static/edge 405 on POST /api/products).
+  router.post('/', createProduct);
+  router.post('/create', createProduct);
 
   return router;
 }
