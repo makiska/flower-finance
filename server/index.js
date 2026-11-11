@@ -13,7 +13,6 @@ async function main() {
   await initDb();
 
   const app = express();
-  const productsRouter = createProductsRouter();
 
   app.use(express.json({ limit: '64kb' }));
 
@@ -34,14 +33,7 @@ async function main() {
   });
 
   app.use('/api/categories', createCategoriesRouter());
-
-  // Explicit POST /api/products so create-nomenclature always has a POST handler.
-  app.post('/api/products', (req, res, next) => {
-    req.url = '/';
-    productsRouter(req, res, next);
-  });
-  app.use('/api/products', productsRouter);
-
+  app.use('/api/products', createProductsRouter());
   app.use('/api/operations', createOperationsRouter());
   app.use('/api/analytics', createAnalyticsRouter());
 

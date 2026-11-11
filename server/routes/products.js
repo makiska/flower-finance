@@ -37,7 +37,7 @@ function createProductsRouter() {
     }
   });
 
-  async function createProduct(req, res, next) {
+  router.post('/', async (req, res, next) => {
     try {
       const name = String(req.body?.name || '').trim();
       const categoryName = String(req.body?.category_name || '').trim();
@@ -99,11 +99,7 @@ function createProductsRouter() {
     } catch (err) {
       next(err);
     }
-  }
-
-  // Collection create + explicit /create alias (avoids static/edge 405 on POST /api/products).
-  router.post('/', createProduct);
-  router.post('/create', createProduct);
+  });
 
   return router;
 }
