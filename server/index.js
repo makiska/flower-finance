@@ -13,11 +13,11 @@ async function main() {
   await initDb();
 
   const app = express();
-  const productsRouter = createProductsRouter();
 
   app.use(express.json({ limit: '64kb' }));
 
   // API before static — otherwise POST can get 405 from the static layer.
+  // Auth returns 401/403 only — never 405.
   app.use('/api', requireAppAuth());
   app.use('/api', (req, res, next) => {
     if (!assertAuthed(req, res)) return;
@@ -34,14 +34,7 @@ async function main() {
   });
 
   app.use('/api/categories', createCategoriesRouter());
-
-  // Explicit POST /api/products so create-nomenclature always has a POST handler.
-  app.post('/api/products', (req, res, next) => {
-    req.url = '/';
-    productsRouter(req, res, next);
-  });
-  app.use('/api/products', productsRouter);
-
+  app.use('/api/products', createProductsRouter());
   app.use('/api/operations', createOperationsRouter());
   app.use('/api/analytics', createAnalyticsRouter());
 
