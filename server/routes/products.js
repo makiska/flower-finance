@@ -101,7 +101,8 @@ function createProductsRouter() {
     }
   });
 
-  // Kept for compatibility; preferred create path is POST /api/product-create.
+  // Local Express matches this. The host does not: see app.post('/api/products')
+  // in server/index.js, which is the route the edge actually allows.
   router.post('/', createProductHandler);
 
   return router;
