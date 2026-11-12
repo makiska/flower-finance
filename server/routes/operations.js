@@ -142,7 +142,7 @@ function createOperationsRouter() {
     }
   });
 
-  router.post('/', async (req, res, next) => {
+  async function createOperationHandler(req, res, next) {
     try {
       const { errors, result } = validateOperationBody(req.body || {});
       if (errors.length) {
@@ -184,7 +184,10 @@ function createOperationsRouter() {
     } catch (err) {
       next(err);
     }
-  });
+  }
+
+  router.post('/', createOperationHandler);
+  router.createOperationHandler = createOperationHandler;
 
   router.put('/:id', async (req, res, next) => {
     try {
