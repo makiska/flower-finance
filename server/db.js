@@ -11,7 +11,8 @@ let local;
 
 /**
  * Run a parameterized SQL query.
- * Uses platform Postgres when DATABASE_URL is set, otherwise in-memory PGlite.
+ * Uses platform Postgres when DATABASE_URL is set.
+ * Otherwise PGlite: on disk when FLOWER_DATA_DIR is set, in memory when it is not.
  * Never log DATABASE_URL.
  */
 function asRows(result) {
@@ -39,7 +40,10 @@ async function sqlOne(text, params = []) {
 
 async function startLocal() {
   const { PGlite } = await import('@electric-sql/pglite');
-  const db = new PGlite();
+  // FLOWER_DATA_DIR keeps the database outside the git checkout so deploys
+  // do not wipe it. Unset locally, PGlite stays in memory.
+  const dataDir = process.env.FLOWER_DATA_DIR?.trim() || '';
+  const db = dataDir ? new PGlite(dataDir) : new PGlite();
   const files = (await readdir(migrationsDir).catch(() => []))
     .filter((f) => f.endsWith('.sql'))
     .sort();
