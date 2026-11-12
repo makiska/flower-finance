@@ -8,6 +8,7 @@ const { createOperationsRouter } = require('./routes/operations');
 const { createAnalyticsRouter } = require('./routes/analytics');
 
 const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 function createApp() {
   const app = express();
@@ -76,8 +77,8 @@ const app = createApp();
 async function main() {
   await initDb();
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Flower Finance Mini App: http://0.0.0.0:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`Flower Finance Mini App: http://${HOST}:${PORT}`);
   });
 }
 
