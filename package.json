@@ -1,7 +1,7 @@
 {
   "name": "flower-finance",
   "version": "1.0.0",
-  "description": "Telegram Mini App учёта финансов цветочного мини-бизнеса",
+  "description": "Telegram Mini App учёта финансов мини-бизнеса по растениям",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
