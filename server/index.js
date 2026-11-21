@@ -78,7 +78,7 @@ async function main() {
   await initDb();
 
   app.listen(PORT, HOST, () => {
-    console.log(`Flower Finance Mini App: http://${HOST}:${PORT}`);
+    console.log(`Учёт растений: http://${HOST}:${PORT}`);
   });
 }
 
