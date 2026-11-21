@@ -16,6 +16,12 @@ body {
   padding-bottom: var(--safe-bottom);
 }
 
+.tab-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
 .tab-btn {
   color: #5a4634;
   opacity: 0.7;

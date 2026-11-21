@@ -4,9 +4,11 @@ import { openOpsForm } from './tabs/ops.js';
 import { renderHistory } from './tabs/history.js';
 import { renderAnalytics, cleanupAnalytics } from './tabs/analytics.js';
 import { renderProfile } from './tabs/profile.js';
+import { renderCatalog } from './tabs/catalog.js';
 
 const TAB_TITLES = {
   home: '',
+  catalog: 'Номенклатура',
   history: 'История',
   analytics: 'Отчёты',
   profile: 'Профиль',
@@ -36,6 +38,7 @@ function setTab(name) {
 
 async function renderCurrent() {
   if (currentTab === 'home') return renderHome(content, ctx);
+  if (currentTab === 'catalog') return renderCatalog(content, ctx);
   if (currentTab === 'history') return renderHistory(content, ctx);
   if (currentTab === 'analytics') return renderAnalytics(content, ctx);
   if (currentTab === 'profile') return renderProfile(content, ctx);

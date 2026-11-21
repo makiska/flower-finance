@@ -185,9 +185,34 @@ function openProductOpForm(type, ctx) {
     createPanel.classList.add('hidden');
   }
 
-  function showCreate() {
-    nameInput.value = searchInput.value.trim();
+  async function loadGroupChips() {
+    let names = [...FIXED_GROUPS];
+    try {
+      const rows = await api.getCategories();
+      const fromApi = rows.map((row) => row.name).filter(Boolean);
+      if (fromApi.length) {
+        names = [
+          ...FIXED_GROUPS.filter((name) => fromApi.includes(name)),
+          ...fromApi.filter((name) => !FIXED_GROUPS.includes(name)).sort((a, b) => a.localeCompare(b, 'ru')),
+        ];
+      }
+    } catch {
+      names = [...FIXED_GROUPS];
+    }
+    if (!names.includes(selectedGroupName)) selectedGroupName = names[0];
+    const box = createPanel.querySelector('#group-chips');
+    box.innerHTML = names
+      .map(
+        (name) =>
+          `<button type="button" class="group-chip" data-group-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`
+      )
+      .join('');
     paintGroups();
+  }
+
+  async function showCreate() {
+    nameInput.value = searchInput.value.trim();
+    await loadGroupChips();
     createPanel.classList.remove('hidden');
     openCreateBtn.classList.add('hidden');
     nameInput.focus();

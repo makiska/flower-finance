@@ -46,13 +46,31 @@ function asArray(data) {
 
 export const api = {
   getCategories: async () => asArray(await request('/api/categories')),
-  getProducts: async (search = '') => {
-    const q = search ? `?search=${encodeURIComponent(search)}` : '';
-    return asArray(await request(`/api/products${q}`));
+  getProducts: async (search = '', extra = {}) => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (extra.category_id) params.set('category_id', String(extra.category_id));
+    const qs = params.toString();
+    return asArray(await request(`/api/products${qs ? `?${qs}` : ''}`));
   },
   createProduct: (body) =>
     request('/api/products', {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateProduct: (id, body) =>
+    request(`/api/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  createCategory: (body) =>
+    request('/api/categories', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateCategory: (id, body) =>
+    request(`/api/categories/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(body),
     }),
   getOperations: (params = {}) => {

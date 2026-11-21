@@ -1,26 +1,4 @@
-import { api } from '../api.js';
-import { escapeHtml } from '../utils.js';
-
-const GROUP_ORDER = [
-  'Ароидные',
-  'Хойи',
-  'Бегонии',
-  'Папоротники',
-  'Другие растения',
-  'Расходники',
-];
-
 export async function renderProfile(root) {
-  root.innerHTML = `<div class="py-8 text-center text-soil-700/70">Загрузка…</div>`;
-
-  let products = [];
-  let loadError = '';
-  try {
-    products = await api.getProducts();
-  } catch (err) {
-    loadError = err.message;
-  }
-
   root.innerHTML = `
     <section class="space-y-4">
       <div class="card-soft space-y-3">
@@ -34,13 +12,8 @@ export async function renderProfile(root) {
           <li>На главной создаются продажа, закупка и расходник.</li>
           <li>В истории операции можно отфильтровать, изменить или удалить.</li>
           <li>В отчётах видны выручка и затраты. За всё время на графике есть и прибыль.</li>
-          <li>Ниже весь список позиций, которые уже заведены.</li>
+          <li>В разделе «Номенкл.» весь список позиций и групп. Правка названия и группы сразу видна в операциях и отчётах.</li>
         </ul>
-      </div>
-
-      <div class="card-soft">
-        <h2 class="mb-2 text-lg font-semibold">Номенклатура</h2>
-        ${loadError ? `<p class="text-sm text-petal-600">${escapeHtml(loadError)}</p>` : renderCatalog(products)}
       </div>
 
       <div class="card-soft space-y-1">
@@ -50,40 +23,4 @@ export async function renderProfile(root) {
       </div>
     </section>
   `;
-}
-
-function renderCatalog(products) {
-  if (!products.length) {
-    return '<p class="text-sm text-soil-700/60">Пока нет позиций</p>';
-  }
-
-  const groups = new Map();
-  for (const product of products) {
-    const name = product.category_name || 'Без группы';
-    if (!groups.has(name)) groups.set(name, []);
-    groups.get(name).push(product);
-  }
-
-  const names = [
-    ...GROUP_ORDER.filter((name) => groups.has(name)),
-    ...[...groups.keys()].filter((name) => !GROUP_ORDER.includes(name)),
-  ];
-
-  return names
-    .map((name) => {
-      const items = groups.get(name);
-      return `
-        <div class="mb-2">
-          <h3 class="mb-2 text-sm font-semibold text-soil-700/70">${escapeHtml(name)}</h3>
-          ${items
-            .map(
-              (product) => `
-                <div class="list-item">
-                  <div class="min-w-0 font-medium truncate">${escapeHtml(product.name)}</div>
-                </div>`
-            )
-            .join('')}
-        </div>`;
-    })
-    .join('');
 }

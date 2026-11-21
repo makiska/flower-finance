@@ -2,8 +2,16 @@ const path = require('path');
 const express = require('express');
 const { initDb, usingPostgres } = require('./db');
 const { requireAppAuth, assertAuthed } = require('./auth');
-const { createCategoriesRouter } = require('./routes/categories');
-const { createProductsRouter, createProductHandler } = require('./routes/products');
+const {
+  createCategoriesRouter,
+  createCategoryHandler,
+  updateCategoryHandler,
+} = require('./routes/categories');
+const {
+  createProductsRouter,
+  createProductHandler,
+  updateProductHandler,
+} = require('./routes/products');
 const { createOperationsRouter } = require('./routes/operations');
 const { createAnalyticsRouter } = require('./routes/analytics');
 
@@ -31,6 +39,8 @@ function createApp() {
     });
   });
 
+  app.post('/api/categories', createCategoryHandler);
+  app.put('/api/categories/:id', updateCategoryHandler);
   app.use('/api/categories', createCategoriesRouter());
 
   // The host records only top-level app.post() routes. router.post('/') inside
@@ -40,6 +50,7 @@ function createApp() {
   // as this module loads.
   app.post('/api/products', createProductHandler);
   app.post('/api/products/', createProductHandler);
+  app.put('/api/products/:id', updateProductHandler);
   // Older cached clients still post here.
   app.post('/api/product-create', createProductHandler);
 
