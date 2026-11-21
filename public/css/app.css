@@ -116,11 +116,122 @@ body {
   border-color: #2f7d4a;
 }
 
+.app-shell {
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.app-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.tight > * + * {
+  margin-top: 0.45rem;
+}
+
+.page-header {
+  padding-top: calc(0.55rem + env(safe-area-inset-top, 0px));
+  padding-bottom: 0.45rem;
+}
+
 .card-soft {
   background: white;
   border: 1px solid #efe6d8;
   border-radius: 1rem;
-  padding: 1rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.chip-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chip-compact {
+  min-height: 32px;
+  padding: 0.15rem 0.7rem;
+  font-size: 0.8125rem;
+  flex: 0 0 auto;
+}
+
+.btn-compact {
+  min-height: 36px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8125rem;
+}
+
+.field-compact {
+  min-height: 40px;
+  padding: 0.45rem 0.75rem;
+}
+
+.op-meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.35rem;
+  row-gap: 0.1rem;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: rgba(90, 70, 52, 0.7);
+}
+
+.op-meta-bit {
+  white-space: nowrap;
+}
+
+.op-meta-bit:not(:last-child)::after {
+  content: "·";
+  margin-left: 0.35rem;
+  color: #cbbba3;
+}
+
+.op-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  margin-left: 0.35rem;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #5a4634;
+  white-space: nowrap;
+}
+
+.legend-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+}
+
+.legend-revenue { background: #2f7d4a; }
+.legend-costs { background: #c45c6a; }
+.legend-profit { background: #3b6ea5; }
+
+.scroll-safe {
+  height: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
 .stat-value {
@@ -154,10 +265,10 @@ body {
 
 .list-item {
   display: flex;
-  gap: 0.75rem;
+  gap: 1.15rem;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0.85rem 0;
+  padding: 0.7rem 0;
   border-bottom: 1px solid #f0e8dc;
 }
 
@@ -323,6 +434,11 @@ body {
 
 .chart-box {
   position: relative;
-  height: 220px;
+  height: 248px;
   width: 100%;
+}
+
+.chart-box-dynamics {
+  height: 268px;
+  margin-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
 }

@@ -14,9 +14,9 @@ export async function renderHome(root, ctx) {
 
     const s = analytics.summary;
     root.innerHTML = `
-      <section class="grid grid-cols-1 gap-3">
+      <section class="grid grid-cols-1 gap-2">
         <div class="card-soft">
-          <p class="mb-3 text-sm font-medium text-soil-700/70">Свод за текущий месяц</p>
+          <p class="mb-2 text-sm font-medium text-soil-700/70">Свод за текущий месяц</p>
           <div class="grid grid-cols-3 gap-2 text-center">
             <div>
               <div class="text-xs text-soil-700/60">Выручка</div>
@@ -101,13 +101,13 @@ function renderOpRow(op) {
     <div class="list-item">
       <div class="min-w-0 flex-1">
         <div class="font-medium truncate">${escapeHtml(operationTitle(op))}</div>
-        <div class="text-xs text-soil-700/60">
-          <span class="op-${op.type}">${typeLabel(op.type)}</span>
-          · ${escapeHtml(formatDate(op.date))}
-          ${op.quantity > 1 ? ` · ${op.quantity} шт` : ''}
+        <div class="op-meta">
+          <span class="op-meta-bit op-${op.type}">${typeLabel(op.type)}</span>
+          <span class="op-meta-bit">${escapeHtml(formatDate(op.date))}</span>
+          ${op.quantity > 1 ? `<span class="op-meta-bit">${op.quantity} шт</span>` : ''}
         </div>
       </div>
-      <div class="flex flex-col items-end gap-1">
+      <div class="op-actions">
         <div class="font-semibold op-${op.type}">${sign}${escapeHtml(formatMoney(op.amount))}</div>
         <div class="flex gap-1">
           <button type="button" data-edit="${op.id}" class="btn-secondary !min-h-[40px] !px-3 !py-1 text-xs">Изм.</button>

@@ -26,18 +26,17 @@ export async function renderHistory(root) {
       });
 
       root.innerHTML = `
-        <section class="space-y-3">
-          <div class="card-soft space-y-3">
-            <h2 class="text-lg font-semibold">История</h2>
-            <div class="flex flex-wrap gap-2">
-              <button type="button" data-period="month" class="chip ${state.period === 'month' ? 'active' : ''}">Месяц</button>
-              <button type="button" data-period="all" class="chip ${state.period === 'all' ? 'active' : ''}">Всё</button>
+        <section class="tight">
+          <div class="card-soft tight">
+            <div class="chip-scroll">
+              <button type="button" data-period="month" class="chip chip-compact ${state.period === 'month' ? 'active' : ''}">Месяц</button>
+              <button type="button" data-period="all" class="chip chip-compact ${state.period === 'all' ? 'active' : ''}">Всё</button>
             </div>
-            <div class="flex flex-wrap gap-2">
-              <button type="button" data-type="" class="chip ${state.type === '' ? 'active' : ''}">Все типы</button>
-              <button type="button" data-type="sale" class="chip ${state.type === 'sale' ? 'active' : ''}">Продажи</button>
-              <button type="button" data-type="purchase" class="chip ${state.type === 'purchase' ? 'active' : ''}">Закупки</button>
-              <button type="button" data-type="expense" class="chip ${state.type === 'expense' ? 'active' : ''}">Расходники</button>
+            <div class="chip-scroll">
+              <button type="button" data-type="" class="chip chip-compact ${state.type === '' ? 'active' : ''}">Все типы</button>
+              <button type="button" data-type="sale" class="chip chip-compact ${state.type === 'sale' ? 'active' : ''}">Продажи</button>
+              <button type="button" data-type="purchase" class="chip chip-compact ${state.type === 'purchase' ? 'active' : ''}">Закупки</button>
+              <button type="button" data-type="expense" class="chip chip-compact ${state.type === 'expense' ? 'active' : ''}">Расходники</button>
             </div>
           </div>
           <div class="card-soft">
@@ -107,15 +106,15 @@ function renderRow(op) {
     <div class="list-item">
       <div class="min-w-0 flex-1">
         <div class="font-medium truncate">${escapeHtml(operationTitle(op))}</div>
-        <div class="text-xs text-soil-700/60">
-          <span class="op-${op.type}">${typeLabel(op.type)}</span>
-          ${op.category_name ? ` · ${escapeHtml(op.category_name)}` : ''}
-          · ${escapeHtml(formatDate(op.date))}
-          ${op.type !== 'expense' ? ` · ${op.quantity} шт` : ''}
+        <div class="op-meta">
+          <span class="op-meta-bit op-${op.type}">${typeLabel(op.type)}</span>
+          ${op.category_name ? `<span class="op-meta-bit">${escapeHtml(op.category_name)}</span>` : ''}
+          <span class="op-meta-bit">${escapeHtml(formatDate(op.date))}</span>
+          ${op.type !== 'expense' ? `<span class="op-meta-bit">${op.quantity} шт</span>` : ''}
         </div>
         ${op.comment && op.type !== 'expense' ? `<div class="text-xs text-soil-700/50 mt-0.5">${escapeHtml(op.comment)}</div>` : ''}
       </div>
-      <div class="flex flex-col items-end gap-1">
+      <div class="op-actions">
         <div class="font-semibold whitespace-nowrap op-${op.type}">${sign}${escapeHtml(formatMoney(op.amount))}</div>
         <div class="flex gap-1">
           <button type="button" data-edit="${op.id}" class="btn-secondary !min-h-[40px] !px-3 !py-1 text-xs">Изм.</button>
