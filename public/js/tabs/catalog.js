@@ -55,7 +55,7 @@ export async function renderCatalog(root) {
       <section class="space-y-4">
         <div class="card-soft space-y-3">
           <div class="flex items-center justify-between gap-2">
-            <h2 class="text-lg font-semibold">Номенклатура</h2>
+            <h2 class="text-lg font-semibold">Ассортимент</h2>
             <span class="text-sm text-soil-700/60">${products.length} из ${state.products.length}</span>
           </div>
           <input class="field" id="catalog-search" type="search" placeholder="Название…" value="${escapeHtml(state.search)}" />
