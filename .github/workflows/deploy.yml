@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: 31.59.116.224
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/flower_deploy
+          chmod 600 ~/.ssh/flower_deploy
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/flower_deploy -o StrictHostKeyChecking=yes root@"$SSH_HOST" 'bash -s' << 'EOF'
+          set -euo pipefail
+          cd /var/www/flower-finance
+          git fetch origin master
+          git checkout -f master
+          git reset --hard origin/master
+          npm install --omit=dev
+          pm2 startOrReload /var/www/flower-finance-data/ecosystem.config.cjs --update-env
+          pm2 save
+          EOF
