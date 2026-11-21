@@ -7,7 +7,7 @@ import { renderProfile } from './tabs/profile.js';
 import { renderCatalog } from './tabs/catalog.js';
 
 const TAB_TITLES = {
-  home: '',
+  home: 'Главная',
   catalog: 'Ассортимент',
   history: 'История',
   analytics: 'Отчёты',
@@ -15,7 +15,7 @@ const TAB_TITLES = {
 };
 
 const content = document.getElementById('tab-content');
-const subtitle = document.getElementById('header-subtitle');
+const pageTitle = document.getElementById('page-title');
 const tabButtons = document.querySelectorAll('.tab-btn');
 
 let currentTab = 'home';
@@ -30,8 +30,7 @@ function setTab(name) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === name);
   });
-  subtitle.textContent = TAB_TITLES[name] || '';
-  subtitle.classList.toggle('hidden', !subtitle.textContent);
+  pageTitle.textContent = TAB_TITLES[name] || '';
   if (name !== 'analytics') cleanupAnalytics();
   renderCurrent();
 }

@@ -52,27 +52,28 @@ export async function renderCatalog(root) {
     const categories = orderedCategories();
     const products = visibleProducts();
     root.innerHTML = `
-      <section class="space-y-4">
-        <div class="card-soft space-y-3">
+      <section class="tight">
+        <div class="card-soft tight">
           <div class="flex items-center justify-between gap-2">
-            <h2 class="text-lg font-semibold">Ассортимент</h2>
             <span class="text-sm text-soil-700/60">${products.length} из ${state.products.length}</span>
+            <div class="flex gap-2">
+              <button type="button" id="new-group" class="btn-secondary btn-compact">Новая группа</button>
+              <button type="button" id="edit-groups" class="btn-secondary btn-compact">Группы</button>
+            </div>
           </div>
-          <input class="field" id="catalog-search" type="search" placeholder="Название…" value="${escapeHtml(state.search)}" />
-          <div class="group-chips" id="catalog-filters">
-            <button type="button" class="chip ${state.categoryId === '' ? 'active' : ''}" data-category-id="">Все</button>
+          <input class="field field-compact" id="catalog-search" type="search" placeholder="Название…" value="${escapeHtml(state.search)}" />
+          <div class="chip-scroll" id="catalog-filters">
+            <button type="button" class="chip chip-compact ${state.categoryId === '' ? 'active' : ''}" data-category-id="">Все</button>
             ${categories
               .map(
                 (category) => `
-                <button type="button" class="chip ${String(state.categoryId) === String(category.id) ? 'active' : ''}" data-category-id="${category.id}">
+                <button type="button" class="chip chip-compact ${String(state.categoryId) === String(category.id) ? 'active' : ''}" data-category-id="${category.id}">
                   ${escapeHtml(category.name)}
                 </button>`
               )
               .join('')}
           </div>
-          <button type="button" id="new-product" class="btn-primary w-full">Новая позиция</button>
-          <button type="button" id="new-group" class="btn-secondary w-full">Новая группа</button>
-          <button type="button" id="edit-groups" class="btn-secondary w-full">Группы</button>
+          <button type="button" id="new-product" class="btn-primary btn-compact w-full">Новая позиция</button>
         </div>
         <div class="card-soft">
           ${

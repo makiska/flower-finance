@@ -3,6 +3,7 @@ import { escapeHtml, formatMoney, showToast } from '../utils.js';
 
 const charts = {};
 let weekdayMode = 'money';
+let showProfit = false;
 
 function destroyCharts() {
   Object.keys(charts).forEach((key) => {
@@ -22,12 +23,11 @@ export async function renderAnalytics(root) {
       const s = data.summary;
 
       root.innerHTML = `
-        <section class="space-y-4">
-          <div class="card-soft space-y-3">
-            <h2 class="text-lg font-semibold">Отчёты</h2>
-            <div class="flex flex-wrap gap-2">
-              <button type="button" data-period="month" class="chip ${period === 'month' ? 'active' : ''}">Текущий месяц</button>
-              <button type="button" data-period="all" class="chip ${period === 'all' ? 'active' : ''}">Всё время</button>
+        <section class="tight">
+          <div class="card-soft tight">
+            <div class="chip-scroll">
+              <button type="button" data-period="month" class="chip chip-compact ${period === 'month' ? 'active' : ''}">Текущий месяц</button>
+              <button type="button" data-period="all" class="chip chip-compact ${period === 'all' ? 'active' : ''}">Всё время</button>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -50,8 +50,16 @@ export async function renderAnalytics(root) {
           </div>
 
           <div class="card-soft">
-            <h3 class="mb-2 font-semibold">Динамика</h3>
-            <div class="chart-box"><canvas id="chart-dynamics"></canvas></div>
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <h3 class="font-semibold">Динамика</h3>
+              <button type="button" data-profit-line class="chip chip-compact ${showProfit ? 'active' : ''}">Прибыль</button>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><i class="legend-swatch legend-revenue"></i>Выручка</span>
+              <span class="legend-item"><i class="legend-swatch legend-costs"></i>Затраты</span>
+              ${showProfit ? '<span class="legend-item"><i class="legend-swatch legend-profit"></i>Прибыль</span>' : ''}
+            </div>
+            <div class="chart-box chart-box-dynamics"><canvas id="chart-dynamics"></canvas></div>
           </div>
 
           <div class="card-soft">
@@ -90,6 +98,7 @@ export async function renderAnalytics(root) {
             <p class="mb-3 text-sm text-soil-700/60">Закупались, продавались меньше всего</p>
             ${renderDeadStock(data.dead_stock)}
           </div>
+          <div class="scroll-safe"></div>
         </section>
       `;
 
@@ -98,6 +107,11 @@ export async function renderAnalytics(root) {
           period = btn.dataset.period;
           load();
         });
+      });
+
+      root.querySelector('[data-profit-line]')?.addEventListener('click', () => {
+        showProfit = !showProfit;
+        load();
       });
 
       root.querySelectorAll('[data-weekday]').forEach((btn) => {
@@ -186,11 +200,12 @@ function paintCharts(data, period) {
     { label: 'Выручка', data: data.dynamics.map((d) => d.revenue), borderColor: palette.revenue, tension: 0.25 },
     { label: 'Затраты', data: data.dynamics.map((d) => d.costs), borderColor: palette.costs, tension: 0.25 },
   ];
-  if (period === 'all') {
+  if (showProfit) {
     dynamics.push({
       label: 'Прибыль',
       data: data.dynamics.map((d) => d.profit),
       borderColor: palette.profit,
+      backgroundColor: 'transparent',
       tension: 0.25,
     });
   }
@@ -201,7 +216,11 @@ function paintCharts(data, period) {
       labels: data.dynamics.map((d) => d.label),
       datasets: dynamics,
     },
-    options: chartOptions(),
+    options: {
+      ...chartOptions(),
+      plugins: { legend: { display: false } },
+      layout: { padding: { bottom: 22, right: 8, left: 4, top: 8 } },
+    },
   });
 
   paintWeekday(data, weekdayMode);
