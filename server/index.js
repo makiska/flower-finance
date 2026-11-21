@@ -78,7 +78,7 @@ async function main() {
   await initDb();
 
   app.listen(PORT, HOST, () => {
-    console.log(`Учёт растений: http://${HOST}:${PORT}`);
+    console.log(`Учет растений: http://${HOST}:${PORT}`);
   });
 }
 

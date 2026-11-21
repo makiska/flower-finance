@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { escapeHtml, formatMoney, showToast } from '../utils.js';
 
 const charts = {};
+let weekdayMode = 'money';
 
 function destroyCharts() {
   Object.keys(charts).forEach((key) => {
@@ -54,7 +55,13 @@ export async function renderAnalytics(root) {
           </div>
 
           <div class="card-soft">
-            <h3 class="mb-2 font-semibold">По дням недели (продажи)</h3>
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <h3 class="font-semibold">По дням недели (продажи)</h3>
+              <div class="flex gap-2">
+                <button type="button" data-weekday="money" class="chip ${weekdayMode === 'money' ? 'active' : ''}">₽</button>
+                <button type="button" data-weekday="qty" class="chip ${weekdayMode === 'qty' ? 'active' : ''}">шт</button>
+              </div>
+            </div>
             <div class="chart-box"><canvas id="chart-weekday"></canvas></div>
           </div>
 
@@ -93,7 +100,17 @@ export async function renderAnalytics(root) {
         });
       });
 
-      paintCharts(data);
+      root.querySelectorAll('[data-weekday]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          weekdayMode = btn.dataset.weekday === 'qty' ? 'qty' : 'money';
+          root.querySelectorAll('[data-weekday]').forEach((chip) => {
+            chip.classList.toggle('active', chip.dataset.weekday === weekdayMode);
+          });
+          paintWeekday(data, weekdayMode);
+        });
+      });
+
+      paintCharts(data, period);
     } catch (err) {
       showToast(err.message);
       root.innerHTML = `<div class="card-soft text-petal-600">${escapeHtml(err.message)}</div>`;
@@ -154,47 +171,40 @@ function renderDeadStock(rows) {
     .join('');
 }
 
-function paintCharts(data) {
+const palette = {
+  revenue: '#2f7d4a',
+  costs: '#c45c6a',
+  profit: '#3b6ea5',
+  qty: '#8a5a12',
+};
+
+function paintCharts(data, period) {
   destroyCharts();
   if (!window.Chart) return;
 
-  const palette = {
-    revenue: '#2f7d4a',
-    costs: '#c45c6a',
-    profit: '#3b6ea5',
-    qty: '#8a5a12',
-  };
+  const dynamics = [
+    { label: 'Выручка', data: data.dynamics.map((d) => d.revenue), borderColor: palette.revenue, tension: 0.25 },
+    { label: 'Затраты', data: data.dynamics.map((d) => d.costs), borderColor: palette.costs, tension: 0.25 },
+  ];
+  if (period === 'all') {
+    dynamics.push({
+      label: 'Прибыль',
+      data: data.dynamics.map((d) => d.profit),
+      borderColor: palette.profit,
+      tension: 0.25,
+    });
+  }
 
   charts.dynamics = new Chart(document.getElementById('chart-dynamics'), {
     type: 'line',
     data: {
       labels: data.dynamics.map((d) => d.label),
-      datasets: [
-        { label: 'Выручка', data: data.dynamics.map((d) => d.revenue), borderColor: palette.revenue, tension: 0.25 },
-        { label: 'Затраты', data: data.dynamics.map((d) => d.costs), borderColor: palette.costs, tension: 0.25 },
-        { label: 'Прибыль', data: data.dynamics.map((d) => d.profit), borderColor: palette.profit, tension: 0.25 },
-      ],
+      datasets: dynamics,
     },
     options: chartOptions(),
   });
 
-  charts.weekday = new Chart(document.getElementById('chart-weekday'), {
-    type: 'bar',
-    data: {
-      labels: data.by_weekday.map((d) => d.label),
-      datasets: [
-        { label: 'Руб', data: data.by_weekday.map((d) => d.revenue), backgroundColor: palette.revenue, yAxisID: 'y' },
-        { label: 'Шт', data: data.by_weekday.map((d) => d.quantity), backgroundColor: palette.qty, yAxisID: 'y1' },
-      ],
-    },
-    options: {
-      ...chartOptions(),
-      scales: {
-        y: { beginAtZero: true, position: 'left' },
-        y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
-      },
-    },
-  });
+  paintWeekday(data, weekdayMode);
 
   charts.months = new Chart(document.getElementById('chart-months'), {
     type: 'bar',
@@ -224,6 +234,34 @@ function paintCharts(data) {
       maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
     },
+  });
+}
+
+function paintWeekday(data, mode) {
+  charts.weekday?.destroy?.();
+  delete charts.weekday;
+  const canvas = document.getElementById('chart-weekday');
+  if (!canvas || !window.Chart) return;
+  const money = mode !== 'qty';
+  charts.weekday = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: data.by_weekday.map((d) => d.label),
+      datasets: [
+        money
+          ? {
+              label: '₽',
+              data: data.by_weekday.map((d) => d.revenue),
+              backgroundColor: palette.revenue,
+            }
+          : {
+              label: 'шт',
+              data: data.by_weekday.map((d) => d.quantity),
+              backgroundColor: palette.qty,
+            },
+      ],
+    },
+    options: chartOptions(),
   });
 }
 

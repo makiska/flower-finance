@@ -44,6 +44,24 @@ body {
   background: var(--leaf-dark);
 }
 
+.btn-amber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  min-width: 44px;
+  border-radius: 0.9rem;
+  background: #f5c542;
+  color: #3d2a08;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e0a818;
+}
+
+.btn-amber:active {
+  background: #e0a818;
+}
+
 .btn-secondary {
   display: inline-flex;
   align-items: center;
