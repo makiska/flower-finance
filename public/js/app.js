@@ -8,7 +8,7 @@ import { renderCatalog } from './tabs/catalog.js';
 
 const TAB_TITLES = {
   home: '',
-  catalog: 'Номенклатура',
+  catalog: 'Ассортимент',
   history: 'История',
   analytics: 'Отчёты',
   profile: 'Профиль',
