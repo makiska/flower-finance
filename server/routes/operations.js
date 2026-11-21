@@ -102,7 +102,12 @@ function createOperationsRouter() {
       const where = [];
       const params = [];
 
-      if (ALLOWED_TYPES.has(type)) {
+      if (type === 'expense') {
+        // «Расходники» в истории — и отдельные операции без товара,
+        // и закупки/продажи позиций из группы «Расходники».
+        params.push('Расходники');
+        where.push(`(o.type = 'expense' OR c.name = $${params.length})`);
+      } else if (ALLOWED_TYPES.has(type)) {
         params.push(type);
         where.push(`o.type = $${params.length}`);
       }
@@ -132,7 +137,11 @@ function createOperationsRouter() {
 
       const countParams = params.slice(0, params.length - 2);
       const totalRow = await sqlOne(
-        `SELECT COUNT(*)::int AS c FROM operations o ${whereSql}`,
+        `SELECT COUNT(*)::int AS c
+         FROM operations o
+         LEFT JOIN products p ON p.id = o.product_id
+         LEFT JOIN categories c ON c.id = p.category_id
+         ${whereSql}`,
         countParams
       );
 

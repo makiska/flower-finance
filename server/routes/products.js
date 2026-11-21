@@ -90,7 +90,7 @@ function createProductsRouter() {
            FROM products p
            JOIN categories c ON c.id = p.category_id
            ORDER BY p.name
-           LIMIT 100`
+           LIMIT 500`
         );
       }
 

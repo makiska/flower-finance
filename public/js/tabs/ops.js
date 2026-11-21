@@ -23,9 +23,9 @@ export async function renderOps(root, ctx) {
       <div class="card-soft">
         <h2 class="mb-2 text-lg font-semibold">Новая операция</h2>
         <div class="grid grid-cols-1 gap-3">
-          <button type="button" data-type="sale" class="btn-primary w-full text-base">+ Продажа</button>
-          <button type="button" data-type="purchase" class="btn-secondary w-full text-base">+ Закупка</button>
-          <button type="button" data-type="expense" class="btn-secondary w-full text-base">+ Расходник</button>
+          <button type="button" data-type="sale" class="btn-primary w-full text-base">Продажа</button>
+          <button type="button" data-type="purchase" class="btn-amber w-full text-base">Закупка</button>
+          <button type="button" data-type="expense" class="btn-amber w-full text-base">Расходник</button>
         </div>
       </div>
     </section>

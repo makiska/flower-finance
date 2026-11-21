@@ -34,10 +34,10 @@ export async function renderHome(root, ctx) {
         </div>
 
         <div class="grid grid-cols-1 gap-2">
-          <button type="button" data-action="sale" class="btn-primary w-full">+ Продажа</button>
+          <button type="button" data-action="sale" class="btn-primary w-full">Продажа</button>
           <div class="grid grid-cols-2 gap-2">
-            <button type="button" data-action="purchase" class="btn-secondary w-full">+ Закупка</button>
-            <button type="button" data-action="expense" class="btn-secondary w-full">+ Расходник</button>
+            <button type="button" data-action="purchase" class="btn-amber w-full">Закупка</button>
+            <button type="button" data-action="expense" class="btn-amber w-full">Расходник</button>
           </div>
         </div>
 

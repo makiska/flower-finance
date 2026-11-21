@@ -1,4 +1,4 @@
-# Учёт растений — Telegram Mini App
+# Учет растений — Telegram Mini App
 
 Node.js + Express + Postgres (Cursor Apps) / PGlite locally + Vanilla JS.
 
