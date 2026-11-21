@@ -3,7 +3,6 @@ import { escapeHtml, formatMoney, showToast } from '../utils.js';
 
 const charts = {};
 let weekdayMode = 'money';
-let showProfit = false;
 
 function destroyCharts() {
   Object.keys(charts).forEach((key) => {
@@ -50,14 +49,11 @@ export async function renderAnalytics(root) {
           </div>
 
           <div class="card-soft">
-            <div class="mb-2 flex items-center justify-between gap-2">
-              <h3 class="font-semibold">Динамика</h3>
-              <button type="button" data-profit-line class="chip chip-compact ${showProfit ? 'active' : ''}">Прибыль</button>
-            </div>
+            <h3 class="mb-2 font-semibold">Динамика</h3>
             <div class="chart-legend">
               <span class="legend-item"><i class="legend-swatch legend-revenue"></i>Выручка</span>
               <span class="legend-item"><i class="legend-swatch legend-costs"></i>Затраты</span>
-              ${showProfit ? '<span class="legend-item"><i class="legend-swatch legend-profit"></i>Прибыль</span>' : ''}
+              ${period === 'all' ? '<span class="legend-item"><i class="legend-swatch legend-profit"></i>Прибыль</span>' : ''}
             </div>
             <div class="chart-box chart-box-dynamics"><canvas id="chart-dynamics"></canvas></div>
           </div>
@@ -107,11 +103,6 @@ export async function renderAnalytics(root) {
           period = btn.dataset.period;
           load();
         });
-      });
-
-      root.querySelector('[data-profit-line]')?.addEventListener('click', () => {
-        showProfit = !showProfit;
-        load();
       });
 
       root.querySelectorAll('[data-weekday]').forEach((btn) => {
@@ -200,7 +191,7 @@ function paintCharts(data, period) {
     { label: 'Выручка', data: data.dynamics.map((d) => d.revenue), borderColor: palette.revenue, tension: 0.25 },
     { label: 'Затраты', data: data.dynamics.map((d) => d.costs), borderColor: palette.costs, tension: 0.25 },
   ];
-  if (showProfit) {
+  if (period === 'all') {
     dynamics.push({
       label: 'Прибыль',
       data: data.dynamics.map((d) => d.profit),
