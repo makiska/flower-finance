@@ -40,7 +40,7 @@ export async function renderAnalytics(root) {
               </div>
               <div>
                 <div class="text-xs text-soil-700/60">Прибыль</div>
-                <div class="stat-value text-lg ${s.profit >= 0 ? 'op-sale' : 'op-expense'}">${escapeHtml(formatMoney(s.profit))}</div>
+                <div class="stat-value text-lg ${s.profit >= 0 ? 'op-profit' : 'op-expense'}">${escapeHtml(formatMoney(s.profit))}</div>
               </div>
               <div>
                 <div class="text-xs text-soil-700/60">Средний чек</div>

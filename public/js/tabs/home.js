@@ -28,7 +28,7 @@ export async function renderHome(root, ctx) {
             </div>
             <div>
               <div class="text-xs text-soil-700/60">Прибыль</div>
-              <div class="stat-value text-base sm:text-xl ${s.profit >= 0 ? 'op-sale' : 'op-expense'}">${escapeHtml(formatMoney(s.profit))}</div>
+              <div class="stat-value text-base sm:text-xl ${s.profit >= 0 ? 'op-profit' : 'op-expense'}">${escapeHtml(formatMoney(s.profit))}</div>
             </div>
           </div>
         </div>
