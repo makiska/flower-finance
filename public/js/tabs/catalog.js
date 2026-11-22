@@ -70,7 +70,7 @@ export async function renderCatalog(root) {
         (product) => `
         <div class="list-item">
           <div class="min-w-0 flex-1">
-            <div class="font-medium truncate">${escapeHtml(product.name)}</div>
+            <div class="item-title">${escapeHtml(product.name)}</div>
             <div class="text-xs text-soil-700/60">
               ${escapeHtml(itemBadge(product))}
               · ${Number(product.operation_count) || 0} опер.

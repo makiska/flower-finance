@@ -106,7 +106,7 @@ function renderRow(op) {
   return `
     <div class="list-item">
       <div class="min-w-0 flex-1">
-        <div class="font-medium truncate">${escapeHtml(operationTitle(op))}</div>
+        <div class="item-title">${escapeHtml(operationTitle(op))}</div>
         <div class="op-meta">
           <span class="op-meta-bit op-${op.type}">${typeLabel(op.type)}</span>
           ${sourceLabel(op) ? `<span class="op-meta-bit">${sourceLabel(op)}</span>` : ''}
