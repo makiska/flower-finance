@@ -7,15 +7,7 @@ import {
   typeLabel,
 } from '../utils.js';
 import { haptic } from '../telegram.js';
-
-const FIXED_GROUPS = [
-  'Ароидные',
-  'Хойи',
-  'Бегонии',
-  'Папоротники',
-  'Другие растения',
-  'Расходники',
-];
+import { FIXED_GROUPS, itemBadge } from '../groups.js';
 
 export async function renderOps(root, ctx) {
   root.innerHTML = `
@@ -114,8 +106,9 @@ function openProductOpForm(type, ctx) {
 
       <div id="product-results" class="nom-results" role="listbox"></div>
 
+      <div id="quick-groups" class="chip-scroll hidden"></div>
       <button type="button" id="open-create" class="btn-primary w-full !min-h-[52px] text-base hidden">
-        + Создать новую позицию
+        + Создать
       </button>
 
       <div id="create-panel" class="nom-create hidden">
@@ -232,7 +225,7 @@ function openProductOpForm(type, ctx) {
     selectedLine.innerHTML = `
       <div class="text-xs uppercase tracking-wide opacity-70">Выбрано</div>
       <div class="text-base font-semibold">${escapeHtml(product.name)}</div>
-      <div class="text-sm opacity-80">${escapeHtml(product.category_name || '')}</div>
+      <div class="text-sm opacity-80">${escapeHtml(itemBadge(product))}</div>
     `;
     results.querySelectorAll('.search-hit').forEach((el) => {
       el.classList.toggle('selected', Number(el.dataset.id) === Number(product.id));
@@ -298,12 +291,13 @@ function openProductOpForm(type, ctx) {
   async function runSearch(q) {
     const needle = q.trim();
     try {
-      const raw = needle ? await api.getProducts(needle) : [];
+      const raw = needle ? await api.getItems(needle) : [];
       productsCache = Array.isArray(raw) ? raw : [];
 
       if (!needle) {
         results.innerHTML = '';
         openCreateBtn.classList.add('hidden');
+        quickGroups.classList.add('hidden');
         hideCreate();
         return;
       }
@@ -317,18 +311,20 @@ function openProductOpForm(type, ctx) {
             }" data-id="${p.id}">
               <span class="min-w-0 pointer-events-none">
                 <span class="block text-base font-semibold leading-tight">${escapeHtml(p.name)}</span>
-                <span class="mt-0.5 block text-sm text-soil-700/70">${escapeHtml(
-                  p.category_name || ''
-                )}</span>
+                <span class="item-badge">${escapeHtml(itemBadge(p))}</span>
               </span>
               <span class="search-hit-check pointer-events-none" aria-hidden="true">✓</span>
             </button>`
           )
           .join('');
         openCreateBtn.classList.add('hidden');
+        quickGroups.classList.add('hidden');
         if (document.activeElement?.id !== 'new-product-name') hideCreate();
       } else {
         results.innerHTML = '';
+        paintQuickGroups();
+        quickGroups.classList.remove('hidden');
+        openCreateBtn.textContent = `+ Создать «${needle}»`;
         openCreateBtn.classList.remove('hidden');
       }
     } catch (err) {
@@ -337,10 +333,45 @@ function openProductOpForm(type, ctx) {
     }
   }
 
-  openCreateBtn.onclick = (e) => {
+  const quickGroups = sheet.querySelector('#quick-groups');
+
+  function paintQuickGroups() {
+    quickGroups.innerHTML = FIXED_GROUPS.map(
+      (name) =>
+        `<button type="button" class="chip chip-compact${
+          name === selectedGroupName ? ' active' : ''
+        }" data-quick-group="${escapeHtml(name)}">${escapeHtml(name)}</button>`
+    ).join('');
+  }
+
+  quickGroups.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-quick-group]');
+    if (!btn) return;
+    event.preventDefault();
+    selectedGroupName = btn.dataset.quickGroup;
+    paintQuickGroups();
+  });
+
+  openCreateBtn.onclick = async (e) => {
     e.preventDefault();
-    haptic('light');
-    showCreate();
+    const name = searchInput.value.trim();
+    if (!name) return;
+    if (!selectedGroupName) {
+      showToast('Выберите группу');
+      return;
+    }
+    try {
+      const product = await api.createItem({ name, group: selectedGroupName });
+      setSelected(product);
+      hideCreate();
+      openCreateBtn.classList.add('hidden');
+      quickGroups.classList.add('hidden');
+      searchInput.value = product.name;
+      await runSearch(product.name);
+      showToast('Позиция выбрана');
+    } catch (err) {
+      showToast(err.message);
+    }
   };
 
   searchInput.addEventListener('input', () => {

@@ -2,12 +2,9 @@ const express = require('express');
 const { sql } = require('../db');
 const { monthBounds } = require('./operations');
 
-function createAnalyticsRouter() {
-  const router = express.Router();
-
-  router.get('/', async (req, res, next) => {
-    try {
-      const period = String(req.query.period || 'month');
+async function loadAnalytics(periodValue) {
+  const period = String(periodValue || 'month');
+  try {
       const params = [];
       let dateFilter = '';
 
@@ -134,6 +131,29 @@ function createAnalyticsRouter() {
         quantity: Number(r.quantity) || 0,
       }));
 
+      const bySubgroup = (await sql(
+        `SELECT
+           c.name AS category_name,
+           p.subgroup AS subgroup,
+           COALESCE(SUM(o.amount), 0) AS revenue,
+           COALESCE(SUM(o.quantity), 0) AS quantity
+         FROM operations o
+         JOIN products p ON p.id = o.product_id
+         JOIN categories c ON c.id = p.category_id
+         WHERE o.type = 'sale'
+           AND p.subgroup IS NOT NULL
+           AND p.subgroup <> ''
+           ${dateFilter}
+         GROUP BY c.name, p.subgroup
+         ORDER BY c.name, revenue DESC`,
+        params
+      )).map((r) => ({
+        category_name: r.category_name,
+        subgroup: r.subgroup,
+        revenue: Number(r.revenue) || 0,
+        quantity: Number(r.quantity) || 0,
+      }));
+
       const categoryTotal = byCategory.reduce((s, r) => s + r.revenue, 0) || 1;
       const topGroups = byCategory.map((r) => ({
         ...r,
@@ -187,7 +207,7 @@ function createAnalyticsRouter() {
         purchase_amount: Number(r.purchase_amount) || 0,
       }));
 
-      res.json({
+      return {
         period: period === 'all' ? 'all' : 'month',
         summary: {
           revenue,
@@ -203,16 +223,27 @@ function createAnalyticsRouter() {
         by_weekday: byWeekday,
         by_month: byMonth,
         by_category: byCategory,
+        by_subgroup: bySubgroup,
         top_products: topProducts,
         top_groups: topGroups,
         dead_stock: deadStock,
-      });
+      };
+  } catch (err) {
+    err.message = `Отчёты: ${err.message}`;
+    throw err;
+  }
+}
+
+function createAnalyticsRouter() {
+  const router = express.Router();
+  router.get('/', async (req, res, next) => {
+    try {
+      res.json(await loadAnalytics(req.query.period));
     } catch (err) {
       next(err);
     }
   });
-
   return router;
 }
 
-module.exports = { createAnalyticsRouter };
+module.exports = { createAnalyticsRouter, loadAnalytics };

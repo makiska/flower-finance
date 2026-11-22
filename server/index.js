@@ -14,6 +14,8 @@ const {
 } = require('./routes/products');
 const { createOperationsRouter } = require('./routes/operations');
 const { createAnalyticsRouter } = require('./routes/analytics');
+const { listItemsHandler, createItemHandler, meHandler } = require('./routes/items');
+const { createAdminCandidatesRouter } = require('./routes/adminCandidates');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -29,6 +31,11 @@ function createApp() {
     if (!assertAuthed(req, res)) return;
     next();
   });
+
+  app.get('/api/me', meHandler);
+  app.get('/api/items', listItemsHandler);
+  app.post('/api/items', createItemHandler);
+  app.use('/api/admin/candidates', createAdminCandidatesRouter());
 
   app.get('/api/health', (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store');

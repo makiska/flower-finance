@@ -68,16 +68,49 @@ async function ensureFixedCategories() {
  * Postgres: schema comes from migrate.mjs on build; still re-seed fixed categories
  * so an empty live table cannot leave the create UI without groups.
  */
+async function withTransaction(work) {
+  if (databaseUrl !== '') {
+    pool ??= new pg.Pool({ connectionString: databaseUrl, max: 5 });
+    const client = await pool.connect();
+    const query = async (text, params = []) => asRows(await client.query(text, params));
+    const queryOne = async (text, params = []) => (await query(text, params))[0] || null;
+    try {
+      await client.query('BEGIN');
+      const result = await work(query, queryOne);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  await sql('BEGIN');
+  try {
+    const result = await work(sql, sqlOne);
+    await sql('COMMIT');
+    return result;
+  } catch (error) {
+    await sql('ROLLBACK');
+    throw error;
+  }
+}
+
 async function initDb() {
   if (databaseUrl === '') {
     await sql('SELECT 1');
   }
   await ensureFixedCategories();
+  const { migrateExistingCatalog } = require('./catalog');
+  return migrateExistingCatalog();
 }
 
 module.exports = {
   sql,
   sqlOne,
+  withTransaction,
   initDb,
   ensureFixedCategories,
   usingPostgres: databaseUrl !== '',
