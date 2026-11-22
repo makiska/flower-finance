@@ -40,7 +40,10 @@ export async function renderProfile(root) {
               <h2 class="mb-2 text-lg font-semibold">Кандидаты</h2>
               <div id="candidates-list"><p class="text-sm text-soil-700/60">Загрузка…</p></div>
             </div>`
-          : ''
+          : `<div class="card-soft">
+              <h2 class="mb-2 text-lg font-semibold">Кандидаты</h2>
+              <p class="text-sm text-soil-700/80">Модерация общего каталога выключена: на сервере не задан ADMIN_TELEGRAM_ID или он не совпадает с вашим Telegram ID.</p>
+            </div>`
       }
     </section>
   `;

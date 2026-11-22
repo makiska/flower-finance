@@ -154,6 +154,22 @@ body {
   display: none;
 }
 
+.catalog-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.catalog-note {
+  margin: 0.2rem 0 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgba(90, 70, 52, 0.75);
+}
+
+.catalog-shared {
+  background: #f7f3ec;
+}
+
 .item-badge {
   display: inline-flex;
   margin-top: 0.2rem;

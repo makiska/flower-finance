@@ -40,14 +40,43 @@ export async function renderCatalog(root) {
     }
   }
 
+  function renderProductRows(list, editable) {
+    if (!list.length) {
+      return `<p class="py-3 text-sm text-soil-700/60">${
+        editable ? 'Своих позиций по этому фильтру нет' : 'В справочнике ничего не найдено'
+      }</p>`;
+    }
+    return list
+      .map(
+        (product) => `
+        <div class="list-item">
+          <div class="min-w-0 flex-1">
+            <div class="font-medium truncate">${escapeHtml(product.name)}</div>
+            <div class="text-xs text-soil-700/60">
+              ${escapeHtml(itemBadge(product))}
+              · ${Number(product.operation_count) || 0} опер.
+            </div>
+          </div>
+          ${
+            editable
+              ? `<button type="button" class="btn-secondary !min-h-[40px] !px-3 !py-1 text-xs" data-edit="${product.id}">Изменить</button>`
+              : ''
+          }
+        </div>`
+      )
+      .join('');
+  }
+
   function paint() {
     const categories = orderedCategories();
     const products = visibleProducts();
+    const mine = products.filter((product) => !product.is_preset);
+    const presets = products.filter((product) => product.is_preset);
     root.innerHTML = `
       <section class="tight">
         <div class="card-soft tight">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-sm text-soil-700/60">${products.length} из ${state.products.length}</span>
+            <span class="text-sm text-soil-700/60">мои ${mine.length} · справочник ${presets.length}</span>
             <div class="flex gap-2">
               <button type="button" id="new-group" class="btn-secondary btn-compact">Новая группа</button>
               <button type="button" id="edit-groups" class="btn-secondary btn-compact">Группы</button>
@@ -68,29 +97,14 @@ export async function renderCatalog(root) {
           <button type="button" id="new-product" class="btn-primary btn-compact w-full">Новая позиция</button>
         </div>
         <div class="card-soft">
-          ${
-            products.length
-              ? products
-                  .map(
-                    (product) => `
-                    <div class="list-item">
-                      <div class="min-w-0 flex-1">
-                        <div class="font-medium truncate">${escapeHtml(product.name)}</div>
-                        <div class="text-xs text-soil-700/60">
-                          ${escapeHtml(itemBadge(product))}
-                          · ${Number(product.operation_count) || 0} опер.
-                        </div>
-                      </div>
-                      ${
-                        product.is_preset
-                          ? '<span class="item-badge">каталог</span>'
-                          : `<button type="button" class="btn-secondary !min-h-[40px] !px-3 !py-1 text-xs" data-edit="${product.id}">Изменить</button>`
-                      }
-                    </div>`
-                  )
-                  .join('')
-              : '<p class="py-4 text-sm text-soil-700/60">Ничего не найдено</p>'
-          }
+          <h2 class="catalog-section-title">Мои позиции</h2>
+          <p class="catalog-note">Ваши названия. История и отчёты показывают именно их. Эти строки можно изменить.</p>
+          ${renderProductRows(mine, true)}
+        </div>
+        <div class="card-soft catalog-shared">
+          <h2 class="catalog-section-title">Общий каталог</h2>
+          <p class="catalog-note">Готовый справочник для продажи и закупки. Эти названия не редактируются и не подменяют уже записанные операции.</p>
+          ${renderProductRows(presets, false)}
         </div>
       </section>
     `;

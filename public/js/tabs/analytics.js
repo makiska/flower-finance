@@ -94,7 +94,8 @@ export async function renderAnalytics(root) {
           </div>
 
           <div class="card-soft">
-            <h3 class="mb-3 font-semibold">Топ позиций</h3>
+            <h3 class="mb-2 font-semibold">Топ позиций</h3>
+            <p class="catalog-note">Это названия ваших позиций, с которыми записаны продажи. Общий справочник их не переименовывает.</p>
             ${renderTopProducts(data.top_products)}
           </div>
 
