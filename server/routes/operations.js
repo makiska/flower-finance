@@ -1,7 +1,5 @@
 const express = require('express');
 const { sql, sqlOne } = require('../db');
-const { buildOperationsWorkbook } = require('../operationsWorkbook');
-const { createExportToken, exportFileName } = require('../exportToken');
 
 const ALLOWED_TYPES = new Set(['sale', 'purchase', 'expense']);
 
@@ -89,50 +87,11 @@ function createOperationsRouter() {
       p.name AS product_name,
       p.is_preset AS product_is_preset,
       c.name AS category_name,
-      c.id AS category_id,
-      p.subgroup AS subgroup
+      c.id AS category_id
     FROM operations o
     LEFT JOIN products p ON p.id = o.product_id
     LEFT JOIN categories c ON c.id = p.category_id
   `;
-
-  function publicBase(req) {
-    const forwarded = String(req.get('x-forwarded-proto') || '')
-      .split(',')[0]
-      .trim();
-    const proto = forwarded || req.protocol || 'https';
-    const host = String(req.get('x-forwarded-host') || req.get('host') || '')
-      .split(',')[0]
-      .trim();
-    return `${proto}://${host}`;
-  }
-
-  router.get('/export-link', (req, res) => {
-    const fileName = exportFileName();
-    const token = createExportToken();
-    const url = `${publicBase(req)}/api/operations/export?token=${encodeURIComponent(token)}`;
-    res.json({ url, file_name: fileName });
-  });
-
-  router.get('/export', async (req, res, next) => {
-    try {
-      const rows = await sql(`${selectSql} ORDER BY o.date ASC, o.id ASC`);
-      const buffer = await buildOperationsWorkbook(rows);
-      const fileName = exportFileName();
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="operations.xlsx"; filename*=UTF-8''${encodeURIComponent(fileName)}`
-      );
-      res.setHeader('Cache-Control', 'private, no-store');
-      res.send(Buffer.from(buffer));
-    } catch (err) {
-      next(err);
-    }
-  });
 
   router.get('/', async (req, res, next) => {
     try {

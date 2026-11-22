@@ -93,7 +93,6 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
-  getExportLink: () => request('/api/operations/export-link'),
   getOperations: (params = {}) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {

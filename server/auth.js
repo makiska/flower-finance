@@ -1,5 +1,4 @@
 const crypto = require('node:crypto');
-const { verifyExportToken } = require('./exportToken');
 
 const INIT_DATA_MAX_AGE_SEC = 86400; // 24h
 
@@ -117,13 +116,6 @@ async function loadCursorIdentity(req) {
 function requireAppAuth() {
   return async function authMiddleware(req, res, next) {
     try {
-      // Telegram downloads the file itself, so this one GET carries a short-lived token
-      // instead of the WebApp init data.
-      if (req.method === 'GET' && req.path === '/operations/export' && verifyExportToken(req.query.token)) {
-        req.auth = { type: 'telegram', userId: 'export', export: true };
-        return next();
-      }
-
       const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim() || '';
       const initData =
         req.get('x-telegram-init-data') ||
