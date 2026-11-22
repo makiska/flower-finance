@@ -72,3 +72,11 @@ export function operationTitle(op) {
   if (op.type === 'expense') return op.comment || 'Расходник';
   return op.product_name || 'Товар';
 }
+
+export function sourceLabel(op) {
+  if (!op?.product_name) return '';
+  const preset = op.product_is_preset;
+  if (preset === true || preset === 't' || preset === 1) return 'из каталога';
+  if (preset === false || preset === 'f' || preset === 0) return 'создана';
+  return '';
+}

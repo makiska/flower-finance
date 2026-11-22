@@ -7,10 +7,13 @@ const assert = require('node:assert/strict');
 const { sql, sqlOne, initDb } = require('../server/db');
 const {
   detectSubgroup,
+  scoreNames,
   createPersonalItem,
   listItems,
   listPendingCandidates,
   approveCandidate,
+  queueCatalogCandidate,
+  retireReplacedCandidate,
   isAdminUser,
 } = require('../server/catalog');
 const { loadAnalytics } = require('../server/routes/analytics');
@@ -30,6 +33,10 @@ async function main() {
   check('Традесканция Зебрина', 'Другие растения', 'Традесканции');
   check('Лейка', 'Расходники', null);
   check('Неизвестное растение', 'Другие растения', null);
+  assert.ok(
+    scoreNames('Фикус шревериана', 'Фикус Эластика Шривериана (Elastica Shivereana)') >= 0.66
+  );
+  assert.ok(scoreNames('Фикус шревериана', 'Фикус Бенджамина Барок (Benjamina Barok)') < 0.45);
 
   await sql('SELECT 1');
   const aroid = await sqlOne(`SELECT id FROM categories WHERE name = 'Ароидные'`);
@@ -172,6 +179,23 @@ async function main() {
   assert.equal(isAdminUser({ auth: { type: 'telegram', userId: '296676631' } }), true);
   assert.equal(isAdminUser({ auth: { type: 'telegram', userId: '111' } }), false);
   assert.equal(isAdminUser({ auth: { type: 'cursor', userId: '296676631' } }), false);
+
+  const typo = await createPersonalItem({
+    userId: '111',
+    name: 'Фикус шревериана',
+    group: 'Ароидные',
+  });
+  assert.equal(typo.status, 201);
+  await sql('UPDATE products SET name = $1, category_id = (SELECT id FROM categories WHERE name = $2) WHERE id = $3', [
+    'Фикус шривериана',
+    'Фикусы',
+    typo.item.id,
+  ]);
+  await queueCatalogCandidate({ userId: '111', name: 'Фикус шривериана', group: 'Фикусы', subgroup: null });
+  await retireReplacedCandidate('Фикус шревериана');
+  const reviewNames = (await listPendingCandidates()).map((row) => row.display_name);
+  assert.equal(reviewNames.includes('Фикус шревериана'), false);
+  assert.equal(reviewNames.includes('Фикус шривериана'), true);
 
   const finalOps = await sqlOne('SELECT COUNT(*)::int AS c FROM operations');
   assert.equal(Number(finalOps.c), 4);

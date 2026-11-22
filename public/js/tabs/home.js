@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { formatMoney, formatDate, typeLabel, escapeHtml, operationTitle, showToast, closeModal } from '../utils.js';
+import { formatMoney, formatDate, typeLabel, escapeHtml, operationTitle, sourceLabel, showToast, closeModal } from '../utils.js';
 import { openEditModal } from './ops.js';
 import { haptic } from '../telegram.js';
 
@@ -103,6 +103,7 @@ function renderOpRow(op) {
         <div class="font-medium truncate">${escapeHtml(operationTitle(op))}</div>
         <div class="op-meta">
           <span class="op-meta-bit op-${op.type}">${typeLabel(op.type)}</span>
+          ${sourceLabel(op) ? `<span class="op-meta-bit">${sourceLabel(op)}</span>` : ''}
           <span class="op-meta-bit">${escapeHtml(formatDate(op.date))}</span>
           ${op.quantity > 1 ? `<span class="op-meta-bit">${op.quantity} шт</span>` : ''}
         </div>

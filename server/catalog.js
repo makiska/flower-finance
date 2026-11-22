@@ -307,6 +307,48 @@ function diceCoefficient(left, right) {
   return (2 * shared) / (aGrams.length + bGrams.length);
 }
 
+const GENUS_WORDS = new Set([
+  'фикус',
+  'бегония',
+  'хойя',
+  'монстера',
+  'филодендрон',
+  'алоказия',
+  'антуриум',
+  'сингониум',
+  'сциндапсус',
+  'эпипремнум',
+  'нефролепис',
+  'калатея',
+  'маранта',
+  'сансевиерия',
+  'пеперомия',
+  'традесканция',
+]);
+
+function levenshtein(left, right) {
+  const prev = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const next = prev[j];
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diagonal + cost);
+      diagonal = next;
+    }
+  }
+  return prev[right.length];
+}
+
+function wordsClose(left, right) {
+  if (left === right) return true;
+  if (Math.min(left.length, right.length) < 5) return false;
+  const limit = Math.max(left.length, right.length) >= 8 ? 2 : 1;
+  if (Math.abs(left.length - right.length) > limit) return false;
+  return levenshtein(left, right) <= limit;
+}
+
 function scoreNames(left, right) {
   const a = nameKey(left);
   const b = nameKey(right);
@@ -315,10 +357,15 @@ function scoreNames(left, right) {
   const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
   const inclusion = shorter.length >= 6 && longer.includes(shorter) ? 0.95 : 0;
   const queryWords = wordsOf(left);
-  const catalogWords = new Set(wordsOf(right));
-  const recall = queryWords.length
-    ? queryWords.filter((word) => catalogWords.has(word)).length / queryWords.length
-    : 0;
+  const catalogWords = wordsOf(right);
+  let hits = 0;
+  let specific = 0;
+  for (const word of queryWords) {
+    if (!catalogWords.some((item) => wordsClose(word, item))) continue;
+    hits += 1;
+    if (!GENUS_WORDS.has(word)) specific += 1;
+  }
+  const recall = queryWords.length && specific ? hits / queryWords.length : 0;
   return Math.max(inclusion, diceCoefficient(left, right), recall);
 }
 
@@ -572,6 +619,17 @@ async function queueCatalogCandidate({ userId, name, group, subgroup }) {
   await registerCandidate(sql, sqlOne, { userId, name, group, subgroup });
 }
 
+async function retireReplacedCandidate(oldName) {
+  const normalized = normalizeName(oldName);
+  if (!normalized) return;
+  const personal = await sql('SELECT name FROM products WHERE is_preset = false');
+  if (personal.some((row) => normalizeName(row.name) === normalized)) return;
+  await sql(
+    `DELETE FROM catalog_candidates WHERE status = 'pending' AND normalized_name = $1`,
+    [normalized]
+  );
+}
+
 async function approveCandidate(id, { name, group, subgroup, presetId }) {
   const candidate = await sqlOne('SELECT * FROM catalog_candidates WHERE id = $1', [id]);
   if (!candidate) return { error: 'Кандидат не найден', status: 404 };
@@ -666,6 +724,7 @@ module.exports = {
   selectItem,
   createPersonalItem,
   queueCatalogCandidate,
+  retireReplacedCandidate,
   scoreNames,
   isAdminUser,
   listPendingCandidates,
