@@ -166,6 +166,18 @@ body {
   color: rgba(90, 70, 52, 0.75);
 }
 
+.review-similar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.review-similar button {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+
 .catalog-shared {
   background: #f7f3ec;
 }

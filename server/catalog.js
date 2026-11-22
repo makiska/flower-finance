@@ -207,6 +207,7 @@ async function migrateExistingCatalog() {
   );
   await fillSubgroups();
   const seed = await seedPresetPlants();
+  await absorbPromotedCopies();
   await linkPresetIds();
 
   const operationsAfter = await countOperations();
@@ -246,8 +247,93 @@ async function migrateExistingCatalog() {
   return report;
 }
 
+const PROMOTED_NAMES = [
+  'Антуриум Балао (Balaoanum)',
+  'Сингониум Эрроу (Arrow)',
+  'Сциндапсус Пиктус Платинум (Platinum)',
+  'Эпипремнум Ауреум Елисейские поля (Champs-Élysées)',
+  'Бегония Гландулоза (Glandulosa)',
+  'Бегония Лирик (Lyric)',
+  'Бегония Лудикра (Ludicra)',
+  'Бегония Макулата Аламео Оле',
+  'Бегония Малайзия (Malaysia)',
+  'Бегония Молдова (СВ)',
+  'Бегония Пандора (Pandora)',
+  'Бегония Снежный Шторм (Snow Storm)',
+  'Бегония Трансильвания (СВ)',
+  'Бегония Уайт Айс (White Ice)',
+  'Бегония Футоэнсис (Futoensis)',
+  'Эписция Пикассо (Picasso)',
+  'Нефролепис Экзальтата Сахарная Вата (Cotton Candy)',
+  'Распылитель',
+  'Фикус Бенджамина Вианди Вариегатный (Wiandi Variegata)',
+  'Фикус Треугольный Вариегатный (Triangularis Variegata)',
+  'Фикус Эластика Еллоу Голд (Yellow Gold)',
+  'Хойя Диверсифолия Махарани (Maharani)',
+  'Хойя Лакуноза Сноу Леопард (Snow Leopard)',
+];
+
 function escapeLike(value) {
   return String(value).replace(/[\\%_]/g, '\\$&');
+}
+
+function wordsOf(value) {
+  return normalizeName(value)
+    .replace(/[^a-zа-яё0-9]+/gi, ' ')
+    .split(' ')
+    .filter((word) => word.length >= 4);
+}
+
+function diceCoefficient(left, right) {
+  const a = nameKey(left);
+  const b = nameKey(right);
+  if (a.length < 3 || b.length < 3) return 0;
+  const grams = (text) => {
+    const list = [];
+    for (let i = 0; i < text.length - 2; i += 1) list.push(text.slice(i, i + 3));
+    return list;
+  };
+  const aGrams = grams(a);
+  const bGrams = grams(b);
+  const counts = new Map();
+  for (const gram of aGrams) counts.set(gram, (counts.get(gram) || 0) + 1);
+  let shared = 0;
+  for (const gram of bGrams) {
+    const count = counts.get(gram) || 0;
+    if (!count) continue;
+    shared += 1;
+    counts.set(gram, count - 1);
+  }
+  return (2 * shared) / (aGrams.length + bGrams.length);
+}
+
+function scoreNames(left, right) {
+  const a = nameKey(left);
+  const b = nameKey(right);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  const inclusion = shorter.length >= 6 && longer.includes(shorter) ? 0.95 : 0;
+  const queryWords = wordsOf(left);
+  const catalogWords = new Set(wordsOf(right));
+  const recall = queryWords.length
+    ? queryWords.filter((word) => catalogWords.has(word)).length / queryWords.length
+    : 0;
+  return Math.max(inclusion, diceCoefficient(left, right), recall);
+}
+
+function rankSimilar(name, presets, limit = 3) {
+  return presets
+    .map((row) => ({
+      id: Number(row.id),
+      name: row.name,
+      group: row.group_name,
+      subgroup: row.subgroup || null,
+      score: Number(scoreNames(name, row.name).toFixed(2)),
+    }))
+    .filter((row) => row.score >= 0.45)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
+    .slice(0, limit);
 }
 
 function rankItem(row, userId) {
@@ -418,6 +504,49 @@ function isAdminUser(req) {
   return req.auth?.type === 'telegram' && String(req.auth.userId) === adminId;
 }
 
+async function absorbNamesIntoPreset(presetId, names, query = sql, queryOne = sqlOne) {
+  const keys = new Set(names.map((name) => normalizeName(name)).filter(Boolean));
+  if (!keys.size) return { moved: 0, removed: 0 };
+  const personal = await query('SELECT id, name FROM products WHERE is_preset = false');
+  let moved = 0;
+  let removed = 0;
+  for (const row of personal) {
+    if (!keys.has(normalizeName(row.name))) continue;
+    const ops = await queryOne('SELECT COUNT(*)::int AS c FROM operations WHERE product_id = $1', [row.id]);
+    await query('UPDATE operations SET product_id = $1 WHERE product_id = $2', [presetId, row.id]);
+    await query('DELETE FROM products WHERE id = $1', [row.id]);
+    moved += Number(ops?.c) || 0;
+    removed += 1;
+  }
+  return { moved, removed };
+}
+
+async function absorbPromotedCopies() {
+  const presets = await sql(
+    `SELECT id, name FROM products WHERE is_preset = true`
+  );
+  const byName = new Map(presets.map((row) => [normalizeName(row.name), Number(row.id)]));
+  let moved = 0;
+  let removed = 0;
+  for (const name of PROMOTED_NAMES) {
+    const presetId = byName.get(normalizeName(name));
+    if (!presetId) continue;
+    const result = await absorbNamesIntoPreset(presetId, [name]);
+    moved += result.moved;
+    removed += result.removed;
+  }
+  return { moved, removed };
+}
+
+async function loadPresetRows() {
+  return sql(
+    `SELECT p.id, p.name, p.subgroup, c.name AS group_name
+     FROM products p
+     JOIN categories c ON c.id = p.category_id
+     WHERE p.is_preset = true`
+  );
+}
+
 async function listPendingCandidates() {
   const rows = await sql(
     `SELECT id, normalized_name, display_name, group_name, detected_subgroup, users_count, status, created_at
@@ -425,6 +554,7 @@ async function listPendingCandidates() {
      WHERE status = 'pending'
      ORDER BY users_count DESC, id ASC`
   );
+  const presets = await loadPresetRows();
   return rows.map((row) => ({
     id: Number(row.id),
     normalized_name: row.normalized_name,
@@ -434,37 +564,87 @@ async function listPendingCandidates() {
     users_count: Number(row.users_count) || 0,
     status: row.status,
     created_at: row.created_at,
+    similar: rankSimilar(row.display_name, presets),
   }));
 }
 
-async function approveCandidate(id, { name, group, subgroup }) {
+async function queueCatalogCandidate({ userId, name, group, subgroup }) {
+  await registerCandidate(sql, sqlOne, { userId, name, group, subgroup });
+}
+
+async function approveCandidate(id, { name, group, subgroup, presetId }) {
   const candidate = await sqlOne('SELECT * FROM catalog_candidates WHERE id = $1', [id]);
   if (!candidate) return { error: 'Кандидат не найден', status: 404 };
-  const clean = cleanName(name || candidate.display_name);
-  const resolvedGroup = cleanName(group || candidate.group_name);
-  const resolvedSubgroup = cleanName(subgroup || candidate.detected_subgroup || '') || detectSubgroup(clean, resolvedGroup);
+  if (candidate.status === 'approved') return { error: 'Позиция уже опубликована', status: 409 };
+
+  const requestedPresetId = Number(presetId);
+  const useExisting = Number.isInteger(requestedPresetId) && requestedPresetId > 0;
+  let clean = cleanName(name || candidate.display_name);
+  let resolvedGroup = cleanName(group || candidate.group_name);
+  let resolvedSubgroup =
+    cleanName(subgroup || candidate.detected_subgroup || '') || detectSubgroup(clean, resolvedGroup);
   if (!clean) return { error: 'Укажите название', status: 400 };
   if (!resolvedGroup) return { error: 'Укажите группу', status: 400 };
   await ensureFixedCategories();
-  const category = await sqlOne('SELECT id, name FROM categories WHERE LOWER(name) = LOWER($1)', [
-    resolvedGroup,
-  ]);
-  if (!category) return { error: 'Неизвестная группа', status: 400 };
 
-  const existing = await sqlOne(
-    `SELECT id FROM products
-     WHERE is_preset = true AND LOWER(name) = LOWER($1) AND category_id = $2`,
-    [clean, category.id]
-  );
-  if (!existing) {
-    await sql(
-      `INSERT INTO products (name, category_id, subgroup, user_id, is_preset, shared)
-       VALUES ($1, $2, $3, NULL, true, false)`,
-      [clean, category.id, resolvedSubgroup || null]
-    );
+  const { withTransaction } = require('./db');
+  try {
+    return await withTransaction(async (query, queryOne) => {
+      let preset = null;
+      if (useExisting) {
+        preset = await queryOne(
+          `SELECT p.id, p.name, c.name AS group_name, p.subgroup
+           FROM products p
+           JOIN categories c ON c.id = p.category_id
+           WHERE p.id = $1 AND p.is_preset = true`,
+          [requestedPresetId]
+        );
+        if (!preset) return { error: 'Позиция общего каталога не найдена', status: 404 };
+        clean = preset.name;
+        resolvedGroup = preset.group_name;
+        resolvedSubgroup = preset.subgroup || null;
+      } else {
+        const category = await queryOne('SELECT id, name FROM categories WHERE LOWER(name) = LOWER($1)', [
+          resolvedGroup,
+        ]);
+        if (!category) return { error: 'Неизвестная группа', status: 400 };
+        resolvedGroup = category.name;
+        preset = await queryOne(
+          `SELECT id, name FROM products
+           WHERE is_preset = true AND LOWER(name) = LOWER($1) AND category_id = $2`,
+          [clean, category.id]
+        );
+        if (!preset) {
+          preset = await queryOne(
+            `INSERT INTO products (name, category_id, subgroup, user_id, is_preset, shared)
+             VALUES ($1, $2, $3, NULL, true, false)
+             RETURNING id, name`,
+            [clean, category.id, resolvedSubgroup || null]
+          );
+        }
+      }
+      const absorbed = await absorbNamesIntoPreset(
+        preset.id,
+        [candidate.display_name, candidate.normalized_name, clean],
+        query,
+        queryOne
+      );
+      await query(`UPDATE catalog_candidates SET status = 'approved', display_name = $2 WHERE id = $1`, [
+        id,
+        clean,
+      ]);
+      return {
+        ok: true,
+        preset_id: Number(preset.id),
+        name: clean,
+        moved_operations: absorbed.moved,
+        removed_personal: absorbed.removed,
+      };
+    });
+  } catch (error) {
+    if (error?.status) return { error: error.message, status: error.status };
+    throw error;
   }
-  await sql(`UPDATE catalog_candidates SET status = 'approved' WHERE id = $1`, [id]);
-  return { ok: true };
 }
 
 async function rejectCandidate(id) {
@@ -485,6 +665,8 @@ module.exports = {
   listItems,
   selectItem,
   createPersonalItem,
+  queueCatalogCandidate,
+  scoreNames,
   isAdminUser,
   listPendingCandidates,
   approveCandidate,

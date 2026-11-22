@@ -1,6 +1,6 @@
 const express = require('express');
 const { sql, sqlOne, ensureFixedCategories } = require('../db');
-const { listItems, createPersonalItem, detectSubgroup } = require('../catalog');
+const { listItems, createPersonalItem, detectSubgroup, normalizeName, queueCatalogCandidate } = require('../catalog');
 
 const PRODUCT_SELECT = `
   SELECT
@@ -134,6 +134,14 @@ async function updateProductHandler(req, res, next) {
       'UPDATE products SET name = $1, category_id = $2, subgroup = $3 WHERE id = $4',
       [name, resolved.categoryId, detected || current.subgroup || null, id]
     );
+    if (normalizeName(name) !== normalizeName(current.name)) {
+      await queueCatalogCandidate({
+        userId: req.auth?.userId,
+        name,
+        group: category?.name,
+        subgroup: detected || current.subgroup || null,
+      });
+    }
 
     res.json(await selectProduct(id));
   } catch (err) {

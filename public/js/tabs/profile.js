@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { escapeHtml, showToast } from '../utils.js';
-import { PLANT_GROUPS } from '../groups.js';
+import { FIXED_GROUPS } from '../groups.js';
 
 export async function renderProfile(root) {
   let isAdmin = false;
@@ -37,11 +37,12 @@ export async function renderProfile(root) {
       ${
         isAdmin
           ? `<div class="card-soft" id="candidates-card">
-              <h2 class="mb-2 text-lg font-semibold">Кандидаты</h2>
+              <h2 class="mb-1 text-lg font-semibold">Позиции на рассмотрение в общий каталог</h2>
+              <p class="catalog-note">Новые названия, которые создают в учёте. Можно поправить имя и сразу опубликовать: продажи перейдут на эту позицию. Если это уже есть в каталоге, выберите похожую и подмените.</p>
               <div id="candidates-list"><p class="text-sm text-soil-700/60">Загрузка…</p></div>
             </div>`
           : `<div class="card-soft">
-              <h2 class="mb-2 text-lg font-semibold">Кандидаты</h2>
+              <h2 class="mb-2 text-lg font-semibold">Позиции на рассмотрение в общий каталог</h2>
               <p class="text-sm text-soil-700/80">Модерация общего каталога выключена: на сервере не задан ADMIN_TELEGRAM_ID или он не совпадает с вашим Telegram ID.</p>
             </div>`
       }
@@ -57,42 +58,83 @@ async function loadCandidates(root) {
   try {
     const rows = await api.getCandidates();
     if (!rows.length) {
-      list.innerHTML = '<p class="text-sm text-soil-700/60">Нет новых кандидатов</p>';
+      list.innerHTML = '<p class="text-sm text-soil-700/60">Нет позиций на рассмотрение</p>';
       return;
     }
-    const groups = PLANT_GROUPS.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+    const groups = FIXED_GROUPS.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
     list.innerHTML = rows
-      .map(
-        (row) => `
+      .map((row) => {
+        const similar = Array.isArray(row.similar) ? row.similar : [];
+        const similarHtml = similar.length
+          ? `<div class="review-similar">
+              <div class="text-xs text-soil-700/60">Похожие в общем каталоге</div>
+              ${similar
+                .map(
+                  (item) => `
+                  <button type="button" class="btn-secondary btn-compact" data-use-preset="${item.id}"
+                    data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group)}"
+                    data-subgroup="${escapeHtml(item.subgroup || '')}">
+                    ${escapeHtml(item.name)} · ${escapeHtml(item.group)} · ${Math.round(Number(item.score) * 100)}%
+                  </button>`
+                )
+                .join('')}
+            </div>`
+          : '<p class="text-xs text-soil-700/60">Похожих позиций в общем каталоге нет</p>';
+        return `
         <form class="candidate-form list-item" data-id="${row.id}">
           <div class="min-w-0 flex-1 tight">
             <div class="text-xs text-soil-700/60">${row.users_count} чел.</div>
             <input class="field field-compact" name="name" value="${escapeHtml(row.display_name)}" />
             <select class="field field-compact" name="group">${groups}</select>
             <input class="field field-compact" name="subgroup" placeholder="Подгруппа" value="${escapeHtml(row.subgroup || '')}" />
+            ${similarHtml}
             <div class="flex gap-2">
-              <button type="submit" class="btn-primary btn-compact">В общий каталог</button>
+              <button type="submit" class="btn-primary btn-compact">Опубликовать и подменить</button>
               <button type="button" data-reject class="btn-secondary btn-compact">Скрыть</button>
             </div>
           </div>
-        </form>`
-      )
+        </form>`;
+      })
       .join('');
     list.querySelectorAll('select[name="group"]').forEach((select, index) => {
       const group = rows[index]?.group;
       if ([...select.options].some((option) => option.value === group)) select.value = group;
     });
     list.querySelectorAll('.candidate-form').forEach((form) => {
+      const clearPreset = () => {
+        delete form.dataset.presetId;
+      };
+      form.elements.name.addEventListener('input', clearPreset);
+      form.elements.group.addEventListener('change', clearPreset);
+      form.elements.subgroup.addEventListener('input', clearPreset);
+      form.querySelectorAll('[data-use-preset]').forEach((button) => {
+        button.addEventListener('click', () => {
+          form.dataset.presetId = button.dataset.usePreset || button.dataset.presetId || '';
+          form.elements.name.value = button.dataset.name || '';
+          if ([...form.elements.group.options].some((option) => option.value === button.dataset.group)) {
+            form.elements.group.value = button.dataset.group;
+          }
+          form.elements.subgroup.value = button.dataset.subgroup || '';
+          form.querySelectorAll('[data-use-preset]').forEach((item) => item.classList.remove('active'));
+          button.classList.add('active');
+        });
+      });
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const data = new FormData(form);
         try {
-          await api.approveCandidate(form.dataset.id, {
+          const result = await api.approveCandidate(form.dataset.id, {
             name: String(data.get('name') || ''),
             group: String(data.get('group') || ''),
             subgroup: String(data.get('subgroup') || ''),
+            preset_id: form.dataset.presetId ? Number(form.dataset.presetId) : null,
           });
-          showToast('Добавлено в общий каталог');
+          const moved = Number(result?.moved_operations) || 0;
+          showToast(
+            form.dataset.presetId
+              ? `Подменено на позицию каталога, продаж: ${moved}`
+              : `Опубликовано в общий каталог, продаж: ${moved}`
+          );
           await loadCandidates(root);
         } catch (err) {
           showToast(err.message);
@@ -101,7 +143,7 @@ async function loadCandidates(root) {
       form.querySelector('[data-reject]').addEventListener('click', async () => {
         try {
           await api.rejectCandidate(form.dataset.id);
-          showToast('Кандидат скрыт');
+          showToast('Позиция скрыта');
           await loadCandidates(root);
         } catch (err) {
           showToast(err.message);
