@@ -40,6 +40,10 @@ body {
   opacity: 1;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .btn-primary {
   display: inline-flex;
   align-items: center;
