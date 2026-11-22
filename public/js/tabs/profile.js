@@ -14,12 +14,6 @@ export async function renderProfile(root) {
   root.innerHTML = `
     <section class="space-y-4">
       <div class="card-soft space-y-3">
-        <h2 class="text-lg font-semibold">Выгрузка</h2>
-        <p class="text-sm text-soil-700/80">Все операции в Excel: дата, тип, позиция, группа, количество и сумма.</p>
-        <button type="button" id="export-excel" class="btn-primary w-full">Скачать Excel</button>
-      </div>
-
-      <div class="card-soft space-y-3">
         <h2 class="text-lg font-semibold">Подписка</h2>
         <p class="text-sm text-soil-700/80">Учёт сейчас открыт без оплаты. Статус подписки будет показан здесь.</p>
       </div>
@@ -55,59 +49,7 @@ export async function renderProfile(root) {
     </section>
   `;
 
-  root.querySelector('#export-excel')?.addEventListener('click', () => downloadExcel(root));
-
   if (isAdmin) loadCandidates(root);
-}
-
-async function downloadExcel(root) {
-  const button = root.querySelector('#export-excel');
-  if (!button || button.disabled) return;
-  button.disabled = true;
-  const previous = button.textContent;
-  button.textContent = 'Готовлю файл…';
-  try {
-    const link = await api.getExportLink();
-    const saved = await saveExcel(link.url, link.file_name);
-    if (saved === 'cancel') return;
-    if (!saved) showToast('Не удалось скачать файл');
-  } catch (err) {
-    showToast(err.message);
-  } finally {
-    button.disabled = false;
-    button.textContent = previous;
-  }
-}
-
-function saveExcel(url, fileName) {
-  const tg = window.Telegram?.WebApp;
-  if (tg?.downloadFile && String(url).startsWith('https:')) {
-    return new Promise((resolve) => {
-      try {
-        tg.downloadFile({ url, file_name: fileName }, (accepted) => {
-          resolve(accepted ? 'telegram' : 'cancel');
-        });
-      } catch {
-        resolve(saveExcelBlob(url, fileName));
-      }
-    });
-  }
-  return saveExcelBlob(url, fileName);
-}
-
-async function saveExcelBlob(url, fileName) {
-  const res = await fetch(url);
-  if (!res.ok) return false;
-  const blob = await res.blob();
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = href;
-  link.download = fileName || 'операции.xlsx';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 1500);
-  return 'blob';
 }
 
 async function loadCandidates(root) {
