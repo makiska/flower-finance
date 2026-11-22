@@ -160,7 +160,7 @@ function renderSubgroupList(rows, group) {
       (row) => `
       <div class="list-item">
         <div class="min-w-0">
-          <div class="font-medium truncate">${escapeHtml(row.subgroup)}</div>
+          <div class="item-title">${escapeHtml(row.subgroup)}</div>
           <div class="text-xs text-soil-700/60">${row.quantity} шт</div>
         </div>
         <div class="font-semibold op-sale whitespace-nowrap">${escapeHtml(formatMoney(row.revenue))}</div>
@@ -176,7 +176,7 @@ function renderTopProducts(rows) {
       (r, i) => `
       <div class="list-item">
         <div class="min-w-0">
-          <div class="font-medium truncate">${i + 1}. ${escapeHtml(r.product_name)}</div>
+          <div class="item-title">${i + 1}. ${escapeHtml(r.product_name)}</div>
           <div class="text-xs text-soil-700/60">${escapeHtml(r.category_name)} · ${r.quantity} шт</div>
         </div>
         <div class="font-semibold op-sale whitespace-nowrap">${escapeHtml(formatMoney(r.revenue))}</div>
@@ -192,7 +192,7 @@ function renderTopGroups(rows) {
       (r) => `
       <div class="list-item">
         <div class="min-w-0">
-          <div class="font-medium truncate">${escapeHtml(r.category_name)}</div>
+          <div class="item-title">${escapeHtml(r.category_name)}</div>
           <div class="text-xs text-soil-700/60">${r.quantity} шт · доля ${r.share}%</div>
         </div>
         <div class="font-semibold op-sale whitespace-nowrap">${escapeHtml(formatMoney(r.revenue))}</div>
@@ -208,7 +208,7 @@ function renderDeadStock(rows) {
       (r) => `
       <div class="list-item">
         <div class="min-w-0">
-          <div class="font-medium truncate">${escapeHtml(r.product_name)}</div>
+          <div class="item-title">${escapeHtml(r.product_name)}</div>
           <div class="text-xs text-soil-700/60">${escapeHtml(r.category_name)}</div>
         </div>
         <div class="text-right text-sm">
