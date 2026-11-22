@@ -102,6 +102,22 @@ async function main() {
   const candidate = pending.find((row) => row.normalized_name === 'редкая хойя');
   assert.ok(candidate);
   assert.equal(candidate.users_count, 2);
+  assert.ok(Array.isArray(candidate.similar));
+
+  const snow = await createPersonalItem({
+    userId: '111',
+    name: 'Бег.снежный шторм',
+    group: 'Бегонии',
+  });
+  await sql(
+    `INSERT INTO operations (type, product_id, quantity, amount, comment)
+     VALUES ('sale', $1, 1, 0, 'черновик')`,
+    [snow.item.id]
+  );
+  const snowPending = (await listPendingCandidates()).find((row) => row.display_name === 'Бег.снежный шторм');
+  assert.ok(snowPending);
+  assert.ok(snowPending.similar[0].name.includes('Снежный Шторм'));
+  assert.ok(snowPending.similar[0].score >= 0.45);
 
   const found = await listItems({ userId: '111', search: 'birkin' });
   assert.ok(found.some((item) => item.name.includes('Биркин') && item.is_preset));
@@ -110,18 +126,43 @@ async function main() {
   assert.equal(legacyVisible[0].id, Number(legacy.id));
   assert.equal(legacyVisible[0].is_preset, false);
 
+  await sql(
+    `INSERT INTO operations (type, product_id, quantity, amount, comment)
+     VALUES ('sale', $1, 1, 0, 'редкая')`,
+    [created.item.id]
+  );
   const approved = await approveCandidate(candidate.id, {
     name: 'Редкая хойя (Rare)',
     group: 'Хойи',
     subgroup: 'Ампельные и мелколистные',
   });
   assert.equal(approved.ok, true);
+  assert.equal(approved.removed_personal, 2);
+  assert.equal(approved.moved_operations, 1);
   const presetRare = await sqlOne(
-    `SELECT is_preset, subgroup FROM products WHERE name = 'Редкая хойя (Rare)'`
+    `SELECT id, is_preset, subgroup FROM products WHERE name = 'Редкая хойя (Rare)'`
   );
   assert.equal(Boolean(presetRare.is_preset), true);
   assert.equal(presetRare.subgroup, 'Ампельные и мелколистные');
+  assert.equal(Number(approved.preset_id), Number(presetRare.id));
+  const rareLeft = await sql(
+    `SELECT id FROM products WHERE is_preset = false AND LOWER(name) LIKE '%редкая хойя%'`
+  );
+  assert.equal(rareLeft.length, 0);
+  const rareOp = await sqlOne(`SELECT product_id FROM operations WHERE comment = 'редкая'`);
+  assert.equal(Number(rareOp.product_id), Number(presetRare.id));
   assert.equal((await listPendingCandidates()).some((row) => row.id === candidate.id), false);
+
+  const substituted = await approveCandidate(snowPending.id, {
+    presetId: snowPending.similar[0].id,
+    name: 'не использовать',
+    group: 'Бегонии',
+  });
+  assert.equal(substituted.ok, true);
+  assert.equal(substituted.preset_id, snowPending.similar[0].id);
+  assert.equal(substituted.removed_personal, 1);
+  assert.equal(substituted.moved_operations, 1);
+  assert.equal(await sqlOne(`SELECT id FROM products WHERE name = 'Бег.снежный шторм'`), null);
 
   const report = await loadAnalytics('month');
   assert.equal(report.summary.revenue, 1500);
@@ -133,7 +174,7 @@ async function main() {
   assert.equal(isAdminUser({ auth: { type: 'cursor', userId: '296676631' } }), false);
 
   const finalOps = await sqlOne('SELECT COUNT(*)::int AS c FROM operations');
-  assert.equal(Number(finalOps.c), 2);
+  assert.equal(Number(finalOps.c), 4);
   console.log('catalog_ok', first.presetAfter, 'presets');
 }
 
