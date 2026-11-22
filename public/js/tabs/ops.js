@@ -233,8 +233,9 @@ function openProductOpForm(type, ctx) {
       }
     `;
     results.querySelectorAll('.search-hit').forEach((el) => {
-      el.classList.toggle('selected', Number(el.dataset.id) === Number(product.id));
+      el.classList.toggle('selected', !product.pending && Number(el.dataset.id) === Number(product.id));
     });
+    if (!product.pending) openCreateBtn.classList.add('hidden');
     haptic('light');
   }
 
@@ -247,6 +248,7 @@ function openProductOpForm(type, ctx) {
     setSelected(product);
     hideCreate();
     openCreateBtn.classList.add('hidden');
+    quickGroups.classList.add('hidden');
   });
 
   createPanel.querySelector('#group-chips').addEventListener('click', (e) => {
@@ -360,6 +362,7 @@ function openProductOpForm(type, ctx) {
 
   openCreateBtn.onclick = (e) => {
     e.preventDefault();
+    if (productsCache.length) return;
     const name = searchInput.value.trim();
     if (!name) return;
     if (!selectedGroupName) {
