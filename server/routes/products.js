@@ -1,6 +1,13 @@
 const express = require('express');
 const { sql, sqlOne, ensureFixedCategories } = require('../db');
-const { listItems, createPersonalItem, detectSubgroup, normalizeName, queueCatalogCandidate } = require('../catalog');
+const {
+  listItems,
+  createPersonalItem,
+  detectSubgroup,
+  normalizeName,
+  queueCatalogCandidate,
+  retireReplacedCandidate,
+} = require('../catalog');
 
 const PRODUCT_SELECT = `
   SELECT
@@ -141,6 +148,7 @@ async function updateProductHandler(req, res, next) {
         group: category?.name,
         subgroup: detected || current.subgroup || null,
       });
+      await retireReplacedCandidate(current.name);
     }
 
     res.json(await selectProduct(id));

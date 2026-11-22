@@ -5,6 +5,7 @@ import {
   formatDate,
   typeLabel,
   operationTitle,
+  sourceLabel,
   showToast,
 } from '../utils.js';
 import { openEditModal } from './ops.js';
@@ -108,6 +109,7 @@ function renderRow(op) {
         <div class="font-medium truncate">${escapeHtml(operationTitle(op))}</div>
         <div class="op-meta">
           <span class="op-meta-bit op-${op.type}">${typeLabel(op.type)}</span>
+          ${sourceLabel(op) ? `<span class="op-meta-bit">${sourceLabel(op)}</span>` : ''}
           ${op.category_name ? `<span class="op-meta-bit">${escapeHtml(op.category_name)}</span>` : ''}
           <span class="op-meta-bit">${escapeHtml(formatDate(op.date))}</span>
           ${op.type !== 'expense' ? `<span class="op-meta-bit">${op.quantity} шт</span>` : ''}

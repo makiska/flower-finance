@@ -85,6 +85,7 @@ function createOperationsRouter() {
     SELECT
       o.id, o.type, o.product_id, o.quantity, o.amount, o.comment, o.date,
       p.name AS product_name,
+      p.is_preset AS product_is_preset,
       c.name AS category_name,
       c.id AS category_id
     FROM operations o
