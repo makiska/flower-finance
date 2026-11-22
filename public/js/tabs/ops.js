@@ -131,7 +131,7 @@ function openProductOpForm(type, ctx) {
           </div>
         </div>
         <button type="button" id="create-product" class="btn-primary w-full !min-h-[52px]">
-          Создать и выбрать
+          Выбрать
         </button>
       </div>
 
@@ -226,6 +226,11 @@ function openProductOpForm(type, ctx) {
       <div class="text-xs uppercase tracking-wide opacity-70">Выбрано</div>
       <div class="text-base font-semibold">${escapeHtml(product.name)}</div>
       <div class="text-sm opacity-80">${escapeHtml(itemBadge(product))}</div>
+      ${
+        product.pending
+          ? '<div class="text-xs opacity-70">Запишется вместе с операцией</div>'
+          : ''
+      }
     `;
     results.querySelectorAll('.search-hit').forEach((el) => {
       el.classList.toggle('selected', Number(el.dataset.id) === Number(product.id));
@@ -253,7 +258,7 @@ function openProductOpForm(type, ctx) {
     haptic('light');
   });
 
-  sheet.querySelector('#create-product').onclick = async (e) => {
+  sheet.querySelector('#create-product').onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     const name = String(nameInput.value || '').trim();
@@ -266,20 +271,7 @@ function openProductOpForm(type, ctx) {
       showToast('Выберите группу');
       return;
     }
-    try {
-      const product = await api.createProduct({
-        name,
-        category_name: selectedGroupName,
-      });
-      setSelected(product);
-      hideCreate();
-      openCreateBtn.classList.add('hidden');
-      searchInput.value = product.name;
-      await runSearch(product.name);
-      showToast('Позиция выбрана');
-    } catch (err) {
-      showToast(err.message);
-    }
+    chooseNew(name, selectedGroupName);
   };
 
   nameInput.addEventListener('keydown', (e) => {
@@ -352,7 +344,21 @@ function openProductOpForm(type, ctx) {
     paintQuickGroups();
   });
 
-  openCreateBtn.onclick = async (e) => {
+  function chooseNew(name, group) {
+    setSelected({
+      pending: true,
+      name,
+      group,
+      category_name: group,
+    });
+    hideCreate();
+    openCreateBtn.classList.add('hidden');
+    quickGroups.classList.add('hidden');
+    searchInput.value = name;
+    showToast('Название выбрано');
+  }
+
+  openCreateBtn.onclick = (e) => {
     e.preventDefault();
     const name = searchInput.value.trim();
     if (!name) return;
@@ -360,18 +366,7 @@ function openProductOpForm(type, ctx) {
       showToast('Выберите группу');
       return;
     }
-    try {
-      const product = await api.createItem({ name, group: selectedGroupName });
-      setSelected(product);
-      hideCreate();
-      openCreateBtn.classList.add('hidden');
-      quickGroups.classList.add('hidden');
-      searchInput.value = product.name;
-      await runSearch(product.name);
-      showToast('Позиция выбрана');
-    } catch (err) {
-      showToast(err.message);
-    }
+    chooseNew(name, selectedGroupName);
   };
 
   searchInput.addEventListener('input', () => {
@@ -392,9 +387,17 @@ function openProductOpForm(type, ctx) {
     const amount = amountRaw !== '' ? Number(amountRaw) : unitPrice * quantity;
     const comment = String(fd.get('comment') || '').trim() || null;
     try {
+      let productId = selected.id;
+      if (selected.pending) {
+        const created = await api.createItem({
+          name: selected.name,
+          group: selected.group || selected.category_name,
+        });
+        productId = created.id;
+      }
       await api.createOperation({
         type,
-        product_id: selected.id,
+        product_id: productId,
         quantity,
         amount,
         comment,
