@@ -437,12 +437,43 @@ function presentItem(row) {
   };
 }
 
+function searchTokens(value) {
+  return normalizeName(value)
+    .replace(/[^a-zа-яё0-9]+/gi, ' ')
+    .split(' ')
+    .filter((word) => word.length >= 2);
+}
+
+function nameWords(value) {
+  return normalizeName(value)
+    .replace(/[^a-zа-яё0-9]+/gi, ' ')
+    .split(' ')
+    .filter(Boolean);
+}
+
+function matchesAllTokens(name, tokens) {
+  if (!tokens.length) return true;
+  const words = nameWords(name);
+  return tokens.every((token) => words.some((word) => word.startsWith(token)));
+}
+
+function searchScore(name, tokens) {
+  const words = nameWords(name);
+  let score = 0;
+  for (const token of tokens) {
+    if (words.some((word) => word === token)) score += 3;
+    else score += 1;
+  }
+  if (nameKey(name).includes(tokens.join(''))) score += 2;
+  return score;
+}
+
 async function listItems({ userId, search = '' }) {
   const params = [String(userId || '')];
   const where = ['(p.is_preset = true OR p.user_id = $1 OR p.shared = true)'];
-  const needle = cleanName(search);
-  if (needle) {
-    params.push(`%${escapeLike(needle)}%`);
+  const tokens = searchTokens(search);
+  for (const token of tokens) {
+    params.push(`%${escapeLike(token)}%`);
     where.push(`LOWER(p.name) LIKE LOWER($${params.length}) ESCAPE '\\'`);
   }
   const rows = await sql(
@@ -452,7 +483,15 @@ async function listItems({ userId, search = '' }) {
      LIMIT 1000`,
     params
   );
-  return preferItems(rows, userId).map(presentItem);
+  let items = preferItems(rows, userId).map(presentItem);
+  if (!tokens.length) return items;
+  items = items.filter((item) => matchesAllTokens(item.name, tokens));
+  items.sort(
+    (a, b) =>
+      searchScore(b.name, tokens) - searchScore(a.name, tokens) ||
+      a.name.localeCompare(b.name, 'ru')
+  );
+  return items;
 }
 
 async function selectItem(id) {

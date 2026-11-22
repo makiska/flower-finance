@@ -128,6 +128,9 @@ async function main() {
 
   const found = await listItems({ userId: '111', search: 'birkin' });
   assert.ok(found.some((item) => item.name.includes('Биркин') && item.is_preset));
+  const byWords = await listItems({ userId: '111', search: 'фикус шри' });
+  assert.ok(byWords.some((item) => item.name.includes('Шривериана') && item.is_preset));
+  assert.equal(byWords.some((item) => item.name.includes('Барок')), false);
   const legacyVisible = await listItems({ userId: '222', search: 'Albo Variegata' });
   assert.equal(legacyVisible.length, 1);
   assert.equal(legacyVisible[0].id, Number(legacy.id));
