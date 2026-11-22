@@ -19,12 +19,31 @@ export async function renderCatalog(root) {
     return [...fixed, ...custom];
   }
 
+  function searchTokens(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/ё/g, 'е')
+      .replace(/[^a-zа-я0-9]+/gi, ' ')
+      .split(' ')
+      .filter((word) => word.length >= 2);
+  }
+
+  function matchesSearch(name, tokens) {
+    if (!tokens.length) return true;
+    const words = String(name || '')
+      .toLowerCase()
+      .replace(/ё/g, 'е')
+      .replace(/[^a-zа-я0-9]+/gi, ' ')
+      .split(' ')
+      .filter(Boolean);
+    return tokens.every((token) => words.some((word) => word.startsWith(token)));
+  }
+
   function visibleProducts() {
-    const needle = state.search.trim().toLowerCase();
+    const tokens = searchTokens(state.search);
     return state.products.filter((product) => {
       if (state.categoryId && String(product.category_id) !== String(state.categoryId)) return false;
-      if (needle && !String(product.name || '').toLowerCase().includes(needle)) return false;
-      return true;
+      return matchesSearch(product.name, tokens);
     });
   }
 
