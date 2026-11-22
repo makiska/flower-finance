@@ -3,6 +3,7 @@ import { escapeHtml, formatMoney, showToast } from '../utils.js';
 
 const charts = {};
 let weekdayMode = 'money';
+let subgroupGroup = '';
 
 function destroyCharts() {
   Object.keys(charts).forEach((key) => {
@@ -80,6 +81,19 @@ export async function renderAnalytics(root) {
           </div>
 
           <div class="card-soft">
+            <h3 class="mb-2 font-semibold">По подгруппам</h3>
+            <div class="chip-scroll" id="subgroup-groups">
+              ${(data.by_subgroup || []).reduce((names, row) => {
+                if (!names.includes(row.category_name)) names.push(row.category_name);
+                return names;
+              }, []).map((name) => `
+                <button type="button" data-subgroup-group="${escapeHtml(name)}" class="chip chip-compact ${subgroupGroup === name ? 'active' : ''}">${escapeHtml(name)}</button>
+              `).join('')}
+            </div>
+            <div id="subgroup-list" class="mt-2">${renderSubgroupList(data.by_subgroup, subgroupGroup)}</div>
+          </div>
+
+          <div class="card-soft">
             <h3 class="mb-3 font-semibold">Топ позиций</h3>
             ${renderTopProducts(data.top_products)}
           </div>
@@ -105,6 +119,17 @@ export async function renderAnalytics(root) {
         });
       });
 
+      root.querySelectorAll('[data-subgroup-group]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          subgroupGroup = btn.dataset.subgroupGroup === subgroupGroup ? '' : btn.dataset.subgroupGroup;
+          root.querySelectorAll('[data-subgroup-group]').forEach((chip) => {
+            chip.classList.toggle('active', chip.dataset.subgroupGroup === subgroupGroup);
+          });
+          const list = root.querySelector('#subgroup-list');
+          if (list) list.innerHTML = renderSubgroupList(data.by_subgroup, subgroupGroup);
+        });
+      });
+
       root.querySelectorAll('[data-weekday]').forEach((btn) => {
         btn.addEventListener('click', () => {
           weekdayMode = btn.dataset.weekday === 'qty' ? 'qty' : 'money';
@@ -123,6 +148,24 @@ export async function renderAnalytics(root) {
   }
 
   await load();
+}
+
+function renderSubgroupList(rows, group) {
+  if (!group) return '<p class="text-sm text-soil-700/60">Выберите группу, чтобы увидеть подгруппы</p>';
+  const matched = (rows || []).filter((row) => row.category_name === group);
+  if (!matched.length) return '<p class="text-sm text-soil-700/60">В этой группе нет продаж с подгруппой</p>';
+  return matched
+    .map(
+      (row) => `
+      <div class="list-item">
+        <div class="min-w-0">
+          <div class="font-medium truncate">${escapeHtml(row.subgroup)}</div>
+          <div class="text-xs text-soil-700/60">${row.quantity} шт</div>
+        </div>
+        <div class="font-semibold op-sale whitespace-nowrap">${escapeHtml(formatMoney(row.revenue))}</div>
+      </div>`
+    )
+    .join('');
 }
 
 function renderTopProducts(rows) {

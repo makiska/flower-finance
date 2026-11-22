@@ -1,15 +1,7 @@
 import { api } from '../api.js';
 import { escapeHtml, openModal, closeModal, showToast } from '../utils.js';
 import { haptic } from '../telegram.js';
-
-const FIXED_GROUPS = [
-  'Ароидные',
-  'Хойи',
-  'Бегонии',
-  'Папоротники',
-  'Другие растения',
-  'Расходники',
-];
+import { FIXED_GROUPS, itemBadge } from '../groups.js';
 
 export async function renderCatalog(root) {
   const state = {
@@ -39,7 +31,7 @@ export async function renderCatalog(root) {
   async function load() {
     root.innerHTML = `<div class="py-8 text-center text-soil-700/70">Загрузка…</div>`;
     try {
-      const [products, categories] = await Promise.all([api.getProducts(), api.getCategories()]);
+      const [products, categories] = await Promise.all([api.getItems(), api.getCategories()]);
       state.products = products;
       state.categories = categories;
       paint();
@@ -85,11 +77,15 @@ export async function renderCatalog(root) {
                       <div class="min-w-0 flex-1">
                         <div class="font-medium truncate">${escapeHtml(product.name)}</div>
                         <div class="text-xs text-soil-700/60">
-                          ${escapeHtml(product.category_name || '')}
+                          ${escapeHtml(itemBadge(product))}
                           · ${Number(product.operation_count) || 0} опер.
                         </div>
                       </div>
-                      <button type="button" class="btn-secondary !min-h-[40px] !px-3 !py-1 text-xs" data-edit="${product.id}">Изменить</button>
+                      ${
+                        product.is_preset
+                          ? '<span class="item-badge">каталог</span>'
+                          : `<button type="button" class="btn-secondary !min-h-[40px] !px-3 !py-1 text-xs" data-edit="${product.id}">Изменить</button>`
+                      }
                     </div>`
                   )
                   .join('')
@@ -193,6 +189,10 @@ export async function renderCatalog(root) {
       }
       try {
         if (product) {
+          if (product.is_preset) {
+            showToast('Общую позицию нельзя изменить');
+            return;
+          }
           await api.updateProduct(product.id, { name, category_id: selectedId });
           showToast('Позиция обновлена');
         } else {

@@ -46,6 +46,26 @@ function asArray(data) {
 
 export const api = {
   getCategories: async () => asArray(await request('/api/categories')),
+  getMe: () => request('/api/me'),
+  getItems: async (search = '') => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    const qs = params.toString();
+    return asArray(await request(`/api/items${qs ? `?${qs}` : ''}`));
+  },
+  createItem: (body) =>
+    request('/api/items', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getCandidates: () => request('/api/admin/candidates'),
+  approveCandidate: (id, body) =>
+    request(`/api/admin/candidates/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  rejectCandidate: (id) =>
+    request(`/api/admin/candidates/${id}/reject`, { method: 'POST' }),
   getProducts: async (search = '', extra = {}) => {
     const params = new URLSearchParams();
     if (search) params.set('search', search);

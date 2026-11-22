@@ -1,5 +1,6 @@
 const express = require('express');
 const { sql, sqlOne, ensureFixedCategories } = require('../db');
+const { listItems, createPersonalItem, detectSubgroup } = require('../catalog');
 
 const PRODUCT_SELECT = `
   SELECT
@@ -7,6 +8,11 @@ const PRODUCT_SELECT = `
     p.name,
     p.category_id,
     p.created_at,
+    p.subgroup,
+    p.user_id,
+    p.is_preset,
+    p.preset_id,
+    p.shared,
     c.name AS category_name,
     (SELECT COUNT(*)::int FROM operations o WHERE o.product_id = p.id) AS operation_count
   FROM products p
@@ -40,11 +46,12 @@ async function resolveCategoryId({ category_id, category_name, fallbackId }) {
   return { categoryId: Number(byName.id) };
 }
 
-async function findSameProduct(name, categoryId, exceptId = 0) {
+async function findSameProduct(name, categoryId, exceptId = 0, userId = '') {
   return sqlOne(
     `SELECT id FROM products
-     WHERE LOWER(name) = LOWER($1) AND category_id = $2 AND id <> $3`,
-    [name, categoryId, exceptId]
+     WHERE LOWER(name) = LOWER($1) AND category_id = $2 AND id <> $3
+       AND is_preset = false AND user_id = $4`,
+    [name, categoryId, exceptId, String(userId)]
   );
 }
 
@@ -63,23 +70,19 @@ async function createProductHandler(req, res, next) {
       return res.status(400).json({ error: resolved.error });
     }
 
-    const existing = await findSameProduct(name, resolved.categoryId);
-    if (existing) {
-      const product = await selectProduct(existing.id);
-      if (req.body?.reject_duplicate) {
-        return res.status(409).json({ error: 'Такая позиция уже есть в этой группе', product });
+    const created = await createPersonalItem({
+      userId: req.auth?.userId,
+      name,
+      categoryId: resolved.categoryId,
+    });
+    if (created.error) {
+      if (created.status === 409 && created.item && !req.body?.reject_duplicate) {
+        return res.status(200).json(created.item);
       }
-      return res.status(200).json(product);
+      return res.status(created.status).json({ error: created.error, product: created.item || undefined });
     }
-
-    const inserted = await sqlOne(
-      `INSERT INTO products (name, category_id)
-       VALUES ($1, $2)
-       RETURNING id`,
-      [name, resolved.categoryId]
-    );
-
-    res.status(201).json(await selectProduct(inserted.id));
+    const product = created.item;
+    res.status(created.status).json(product);
   } catch (err) {
     next(err);
   }
@@ -94,6 +97,12 @@ async function updateProductHandler(req, res, next) {
 
     const current = await selectProduct(id);
     if (!current) {
+      return res.status(404).json({ error: 'Позиция не найдена' });
+    }
+    if (current.is_preset) {
+      return res.status(403).json({ error: 'Общую позицию нельзя изменить' });
+    }
+    if (!current.shared && String(current.user_id || '') !== String(req.auth?.userId || '')) {
       return res.status(404).json({ error: 'Позиция не найдена' });
     }
 
@@ -114,14 +123,16 @@ async function updateProductHandler(req, res, next) {
       return res.status(400).json({ error: resolved.error });
     }
 
-    const duplicate = await findSameProduct(name, resolved.categoryId, id);
+    const duplicate = await findSameProduct(name, resolved.categoryId, id, current.user_id);
     if (duplicate) {
       return res.status(409).json({ error: 'Такая позиция уже есть в этой группе' });
     }
 
+    const category = await sqlOne('SELECT name FROM categories WHERE id = $1', [resolved.categoryId]);
+    const detected = detectSubgroup(name, category?.name);
     await sql(
-      'UPDATE products SET name = $1, category_id = $2 WHERE id = $3',
-      [name, resolved.categoryId, id]
+      'UPDATE products SET name = $1, category_id = $2, subgroup = $3 WHERE id = $4',
+      [name, resolved.categoryId, detected || current.subgroup || null, id]
     );
 
     res.json(await selectProduct(id));
@@ -137,28 +148,11 @@ function createProductsRouter() {
     try {
       const search = String(req.query.search || '').trim();
       const categoryId = Number(req.query.category_id);
-      const where = [];
-      const params = [];
-
-      if (search) {
-        params.push(`%${search}%`);
-        where.push(`LOWER(p.name) LIKE LOWER($${params.length})`);
-      }
+      let rows = await listItems({ userId: req.auth?.userId, search });
       if (Number.isInteger(categoryId) && categoryId > 0) {
-        params.push(categoryId);
-        where.push(`p.category_id = $${params.length}`);
+        rows = rows.filter((row) => Number(row.category_id) === categoryId);
       }
-
-      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-      const rows = await sql(
-        `${PRODUCT_SELECT}
-         ${whereSql}
-         ORDER BY c.name, p.name
-         LIMIT 500`,
-        params
-      );
-
-      res.status(200).type('json').send(JSON.stringify(Array.isArray(rows) ? rows : []));
+      res.status(200).type('json').send(JSON.stringify(rows));
     } catch (err) {
       next(err);
     }
